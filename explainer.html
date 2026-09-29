@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recreating the physics probes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,620;1,7..72,400&family=Sora:wght@420;560;680&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --field: #e4ecee;
+    --sheet: #f4f7f8;
+    --ink: #142028;
+    --mute: #526068;
+    --line: #c3cfd4;
+    --disk: #1d4ed8;
+    --band: #d89a1a;
+    --speed: #0f766e;
+    --accel: #9f1239;
+    --dir: #1d4ed8;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    font-family: Literata, "Iowan Old Style", Palatino, serif;
+    font-size: 18px;
+    line-height: 1.55;
+  }
+  a { color: var(--disk); }
+  a:focus-visible, button:focus-visible, input:focus-visible {
+    outline: 2px solid var(--disk);
+    outline-offset: 3px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 40px 28px 80px; }
+  h1, h2, h3, .ui {
+    font-family: Sora, "Avenir Next", sans-serif;
+    font-weight: 560;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+  h1 { font-size: 40px; font-weight: 680; margin: 0 0 12px; max-width: 16ch; }
+  h2 { font-size: 26px; margin: 0 0 10px; }
+  h3 { font-size: 18px; margin: 0 0 8px; }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  .lede { font-size: 20px; max-width: 42ch; }
+  .mute { color: var(--mute); }
+  nav.jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin: 22px 0 8px;
+    font-family: Sora, sans-serif;
+    font-size: 14px;
+  }
+  nav.jump a { text-decoration: none; }
+  header.hero {
+    display: grid;
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    gap: 36px;
+    align-items: end;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  .instrument {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 16px 16px 12px;
+  }
+  .instrument .caption {
+    font-family: Sora, sans-serif;
+    font-size: 12px;
+    color: var(--mute);
+    margin-top: 8px;
+  }
+  svg.chart { width: 100%; height: auto; display: block; }
+  .layers {
+    display: grid;
+    grid-template-columns: repeat(24, 1fr);
+    gap: 3px;
+    margin-top: 10px;
+  }
+  .layers button {
+    appearance: none;
+    border: 0;
+    height: 36px;
+    padding: 0;
+    background: #d5e0e4;
+    cursor: pointer;
+    font-family: Sora, sans-serif;
+    font-size: 9px;
+    color: var(--ink);
+  }
+  .layers button.on { background: var(--ink); color: var(--sheet); }
+  .layers button.zone { background: #f3ddaa; }
+  .layers button.zone.on { background: var(--band); color: var(--ink); }
+  .readout {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 12px;
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+  }
+  .readout p { margin: 0; max-width: none; }
+  .readout .note { grid-column: 1 / -1; }
+  .swatch { width: 10px; height: 10px; display: inline-block; margin-right: 6px; }
+  section { padding: 42px 0 8px; }
+  .split {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 32px;
+    align-items: start;
+  }
+  .panel {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 16px;
+  }
+  ol.steps, ul.plain { margin: 0 0 14px; padding-left: 1.2em; max-width: 68ch; }
+  li { margin: 0 0 8px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+    margin: 8px 0 16px;
+  }
+  th, td {
+    text-align: left;
+    vertical-align: top;
+    padding: 8px 10px 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  th { font-family: Sora, sans-serif; font-size: 13px; font-weight: 560; }
+  code, pre {
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 0.86em;
+  }
+  pre {
+    background: #142028;
+    color: #e7eef0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    line-height: 1.45;
+    font-size: 13px;
+  }
+  .formula {
+    font-family: Literata, serif;
+    font-style: italic;
+    background: var(--sheet);
+    border-left: 3px solid var(--ink);
+    padding: 10px 14px;
+    margin: 0 0 14px;
+    max-width: 68ch;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--ink); }
+  .dial-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 18px;
+    align-items: center;
+  }
+  .metric {
+    font-family: Sora, sans-serif;
+    font-size: 28px;
+    font-weight: 680;
+    letter-spacing: -0.04em;
+    margin: 0;
+  }
+  .metric span { font-size: 14px; font-weight: 420; color: var(--mute); }
+  footer { margin-top: 48px; color: var(--mute); font-size: 15px; }
+  @media (max-width: 800px) {
+    h1 { font-size: 32px; }
+    header.hero, .split, .dial-row { grid-template-columns: 1fr; }
+    .layers button { font-size: 0; height: 28px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <p class="mute ui" style="margin-bottom:8px">Part 1 of the V-JEPA physics take-home</p>
+      <h1>Three moves that read motion out of a frozen encoder</h1>
+      <p class="lede">Joseph et al. do not train a physics engine. They ask a frozen V-JEPA 2 encoder where speed, acceleration, and direction become linearly readable, how many dimensions each occupies, and whether those dimensions can be steered.</p>
+      <nav class="jump">
+        <a href="#scope">What to reproduce</a>
+        <a href="#move1">Layer probes</a>
+        <a href="#move2">Nullspace</a>
+        <a href="#move3">Steering</a>
+        <a href="#plan">Work order</a>
+        <a href="#repos">Repos</a>
+      </nav>
+    </div>
+    <div class="instrument" id="scope">
+      <svg class="chart" viewBox="0 0 520 220" role="img" aria-label="Schematic probe curves across 24 layers">
+        <text x="8" y="16" font-family="Sora, sans-serif" font-size="12" fill="#526068">Schematic R², paper shape only</text>
+        <line x1="36" y1="190" x2="500" y2="190" stroke="#c3cfd4"/>
+        <line x1="36" y1="24" x2="36" y2="190" stroke="#c3cfd4"/>
+        <rect id="band" x="0" y="24" width="0" height="166" fill="#d89a1a" opacity="0.28"/>
+        <path id="p-speed" fill="none" stroke="#0f766e" stroke-width="2.4"/>
+        <path id="p-accel" fill="none" stroke="#9f1239" stroke-width="2.4"/>
+        <path id="p-dir" fill="none" stroke="#1d4ed8" stroke-width="2.6"/>
+        <line id="cursor" x1="0" y1="24" x2="0" y2="190" stroke="#142028" stroke-width="1.2"/>
+        <text x="36" y="210" font-family="Sora, sans-serif" font-size="11" fill="#526068">layer 0</text>
+        <text x="430" y="210" font-family="Sora, sans-serif" font-size="11" fill="#526068">layer 23</text>
+        <text x="8" y="40" font-family="Sora, sans-serif" font-size="11" fill="#526068">high</text>
+        <text x="8" y="186" font-family="Sora, sans-serif" font-size="11" fill="#526068">low</text>
+      </svg>
+      <div class="layers" id="layers"></div>
+      <div class="readout" id="readout"></div>
+      <p class="caption">Scrub a layer. The amber band is one third of the way through ViT-L, the paper’s Physics Emergence Zone. These curves are a cartoon of Figure 2c, not a forecast of scores on the supplied clips.</p>
+    </div>
+  </header>
+
+  <section>
+    <h2>What Part 1 actually asks for</h2>
+    <p>The supplied clips are a smaller, flatter cousin of the paper’s Kubric balls: one blue disk, 256×256, 16 frames, 24 fps. Direction has 1,500 clips and 64 angles. Speed and acceleration have 1,536 clips each, with 64 magnitudes. The goal is the same experimental sequence, and the same qualitative story, on this data. Matching the paper’s R² numbers is not the target.</p>
+    <div class="split">
+      <div>
+        <table>
+          <thead><tr><th>Move</th><th>Question</th><th>Signature in the paper</th></tr></thead>
+          <tbody>
+            <tr><td>Layer-wise probes</td><td>When is each variable linearly available?</td><td>Speed and acceleration from the first layers. Direction jumps near layer 8 of 24, peaks in the middle, then softens.</td></tr>
+            <tr><td>Iterative nullspace</td><td>How many independent directions encode it?</td><td>Direction needs on the order of 40–50 features and falls in a sawtooth. Speed is lower-dimensional and smooth.</td></tr>
+            <tr><td>Multi-probe steering</td><td>Do those directions control the readout?</td><td>One probe barely moves decoded angle. About 20 orthogonal probes, at layer 8, drop held-out angular error from ~83° to ~12°.</td></tr>
+          </tbody>
+        </table>
+        <p>Leave IntPhys, attention ablations, and the Goodfire splines out of this pass. Those are other sections of the paper, and Part 2 of the README.</p>
+      </div>
+      <div class="panel">
+        <h3>Model, frozen</h3>
+        <p>V-JEPA 2 ViT-L/16 at 256 resolution: <code>facebook/vjepa2-vitl-fpc64-256</code>. Twenty-four blocks, width 1024. The checkpoint name says 64 frames; the config notes that frame count does not change inference. Feed the 16 real frames. Do not tile them up to 64.</p>
+        <p>Tubelets of 2 frames turn 16 frames into 8 time steps. Patches of 16 on a 256 image give a 16×16 grid. Each clip is 8 × 256 = 2048 tokens.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="move1">
+    <h2>Move 1. Probe every layer</h2>
+    <div class="split">
+      <div>
+        <p>Run the frozen encoder once per clip with <code>output_hidden_states=True</code> and <code>skip_predictor=True</code>. Keep the residual stream after each block. In Transformers, <code>hidden_states[0]</code> is the patch embedding and <code>hidden_states[1]</code> through <code>hidden_states[24]</code> are blocks 0 through 23. The paper’s layer index is the block index.</p>
+        <p>Mean-pool the 2048 tokens to one vector per layer. That is the probe the paper treats as the primary readout: a linear map of the pooled residual, <span class="formula" style="display:inline;border:0;padding:0;background:none">f(h) = W h + b</span>. Save the pooled tensor outside <code>data/</code>, about a quarter gigabyte in float16 for all three datasets.</p>
+        <p>Fit a separate probe at every layer.</p>
+        <ul class="plain">
+          <li>Direction. Predict <code>(sin θ, cos θ)</code> with squared error. Score R² on that pair, then convert the prediction with <code>atan2</code> and score circular mean absolute error. Chance on a uniform circle is about 90°.</li>
+          <li>Speed and acceleration. Predict the scalar magnitude with squared error. Score R² and MAE in the original units (m/s and m/s²).</li>
+        </ul>
+        <p>The paper swept learning rate and weight decay and reported 5-fold grouped cross-validation. A ridge regression with a small alpha grid is the same linear model and is enough here, as long as the split is grouped. An independent reproduction found that pooling choice moves the curves a lot: mean-pool is what the paper states; last-time-step pooling was what made their Figure 2c line up. Start with mean-pool, write that choice down, and only then try last-time-step pooling if direction is already strong at layer 0.</p>
+      </div>
+      <div class="panel">
+        <h3>What “emergence” means on a plot</h3>
+        <p>Draw one chart with three curves, R² against layer. The finding to look for is an ordering, not a number: speed and acceleration high early, direction low and then rising near one third depth, all three a bit weaker at the last layer than at their peak.</p>
+        <p>Use the validation fold to name a working layer for the next two moves. In the paper that layer is 8. If this dataset shifts the rise, follow the rise. Do not hard-code 8 if the curve says otherwise.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="move2">
+    <h2>Move 2. Remove the probe, then probe again</h2>
+    <div class="split">
+      <div>
+        <p>This is iterative nullspace projection, written out in Appendix C.11. It is the same idea as Ravfogel’s INLP, specialized to regression weights rather than a gender classifier.</p>
+        <p class="formula">X ← X − X Q Qᵀ &nbsp;&nbsp;after each probe, where Q is an orthonormal basis for that probe’s rows.</p>
+        <ol class="steps">
+          <li>At the chosen layer, take training activations X.</li>
+          <li>Fit probe k. Record validation R² and MAE.</li>
+          <li>QR-decompose the probe weight matrix. For direction the weight is 2 × 1024, so each step removes two dimensions. For speed or acceleration it removes one.</li>
+          <li>Project those directions out of X and refit.</li>
+          <li>Stop when direction R² drops under 0.1 or circular MAE exceeds 80°, or when speed or acceleration R² drops under 0.05.</li>
+        </ol>
+        <p>Effective dimension is 2K for direction and K for the scalars. The paper’s sawtooth on direction is the interesting shape: performance dips and partly recovers in pairs, which they read as sine/cosine partners. Speed should decay without that jag.</p>
+      </div>
+      <div class="panel">
+        <h3>Sawtooth versus smooth decay</h3>
+        <p class="mute ui" id="null-label" style="margin-bottom:8px"></p>
+        <svg class="chart" viewBox="0 0 420 180" role="img" aria-label="Schematic nullspace performance">
+          <line x1="28" y1="156" x2="400" y2="156" stroke="#c3cfd4"/>
+          <path id="saw" fill="none" stroke="#1d4ed8" stroke-width="2.4"/>
+          <path id="smooth" fill="none" stroke="#0f766e" stroke-width="2.4"/>
+          <circle id="saw-dot" r="4" fill="#1d4ed8"/>
+          <circle id="smooth-dot" r="4" fill="#0f766e"/>
+        </svg>
+        <label class="ui" for="kslide" style="font-size:13px">Probe iteration</label>
+        <input id="kslide" type="range" min="0" max="24" value="0">
+        <p class="caption mute">Blue is a cartoon of direction’s paired drop and partial recovery. Teal is a cartoon of speed. The paper measured this on their Kubric set; the slider only shows the shape to watch for.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="move3">
+    <h2>Move 3. Steer with many probes at once</h2>
+    <div class="split">
+      <div>
+        <p>Appendix C.12 turns the same probe sequence into an intervention. Stack the training-set probe weights and QR-decompose them into an orthonormal basis V. A single column of V is not enough. Steering means replacing the coordinates of x inside that whole subspace.</p>
+        <ol class="steps">
+          <li>Split activations into a fit set and a locked evaluation set before any probe is trained. The paper used 70 / 30.</li>
+          <li>Build the orthogonal probe sequence on the fit set only.</li>
+          <li>Train one evaluation probe on the locked set, using unsteered activations. It never sees the steering probes.</li>
+          <li>For a chosen target angle θ*, project a locked activation into the subspace, solve for new coordinates so every included probe predicts (sin θ*, cos θ*), and add back the component orthogonal to V.</li>
+          <li>Read the steered vector with the evaluation probe. Report circular error to the target and to the true label.</li>
+        </ol>
+        <p class="formula">x⊥ = x − V Vᵀ x &nbsp;&nbsp;&nbsp; x* = V c* + x⊥</p>
+        <p>c* is the least-squares solution of “every probe k should output the target sine and cosine,” including each probe’s bias and the leftover x⊥. Repeat for 1, 5, 10, and 20 probes. The causal claim is the opposing pair of errors: error to the target falls while error to the true angle rises.</p>
+      </div>
+      <div class="panel">
+        <h3>Held-out angle, paper’s layer 8</h3>
+        <div class="dial-row">
+          <svg viewBox="0 0 160 160" width="140" height="140" aria-hidden="true">
+            <circle cx="80" cy="80" r="62" fill="none" stroke="#c3cfd4" stroke-width="8"/>
+            <line id="true-arm" x1="80" y1="80" x2="80" y2="22" stroke="#526068" stroke-width="3"/>
+            <line id="read-arm" x1="80" y1="80" x2="142" y2="80" stroke="#1d4ed8" stroke-width="3"/>
+            <circle cx="80" cy="80" r="5" fill="#142028"/>
+          </svg>
+          <div>
+            <p class="metric" id="mae-target">83°</p>
+            <p class="mute" style="margin:0 0 10px">circular error to the target, as read by a probe that did not build the subspace</p>
+            <label class="ui" for="nslide" style="font-size:13px">How many orthogonal probes</label>
+            <input id="nslide" type="range" min="0" max="20" value="0">
+            <p id="steer-note" class="mute" style="margin-top:8px"></p>
+          </div>
+        </div>
+        <p class="caption mute">Dial uses the paper’s reported points: about 83° with no intervention, still above 50° for the first few probes, about 12° at 20 probes, on their data, steering every clip toward 90°. Gray arm is the target. Blue arm is the decoded angle.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="plan">
+    <h2>Work order</h2>
+    <table>
+      <thead><tr><th>Step</th><th>Do this</th><th>Keep separate</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>0. Split</td>
+          <td>Within each dataset, stratify on the primary label so all 64 bins appear in every split. Group folds by start position, quantized to about half a meter, so a probe cannot memorize “this corner means this angle.” Lock 20% as test before fitting anything. Use 70% to fit and 10% to choose layer, ridge alpha, and how many probes to keep.</td>
+          <td>The test clips never enter a probe, a QR, or a steering solve.</td>
+        </tr>
+        <tr>
+          <td>1. Extract</td>
+          <td>Frozen forward pass, predictor skipped, hidden states saved, tokens mean-pooled. One file per dataset under <code>artifacts/activations/</code>.</td>
+          <td>Do not write into <code>data/</code>.</td>
+        </tr>
+        <tr>
+          <td>2. Layer curves</td>
+          <td>Ridge probes, 5-fold grouped CV on train+val. Plot R² and MAE versus layer for all three variables. Pick the layer on val.</td>
+          <td>Refit the chosen probe on train only before quoting a test number.</td>
+        </tr>
+        <tr>
+          <td>3. Nullspace</td>
+          <td>At that layer, iterate project-and-refit on train, score each step on val. Plot the curve. Count dimensions as 2K or K.</td>
+          <td>Stopping thresholds are val metrics. Do not peek at test to decide when to stop.</td>
+        </tr>
+        <tr>
+          <td>4. Steer</td>
+          <td>Build V from the train probe sequence. Train the evaluation probe on test activations only, before steering. Sweep the number of probes. Plot MAE to target and MAE to truth.</td>
+          <td>The evaluation probe is not one of the steering probes.</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3>Plumbing that is easy to get wrong</h3>
+    <ul class="plain">
+      <li>Normalize pixels with the V-JEPA processor. A hand-rolled 0–1 scale will not match the checkpoint.</li>
+      <li>Sixteen frames in, tubelet 2, so eight temporal tokens. If the processor resamples time, override it and pass the 16 frames in order.</li>
+      <li>Direction labels are degrees in metadata. Convert to radians before sine and cosine. Circular error wraps through 0° and 360°.</li>
+      <li>Speed and acceleration datasets also store a direction. Probe only the primary magnitude in those sets, or the direction factor will dominate a careless target.</li>
+      <li>Z-score scalar targets inside each fold, using training statistics, if you want R² comparable across layers. Still report MAE in m/s and m/s².</li>
+      <li>Expect the curves to be softer than the paper. Their velocity set had 8 directions and 392 Kubric renders. This set has 64 directions and a flat blue disk. The ordering of the three variables is the result that should survive.</li>
+    </ul>
+    <pre>from transformers import AutoModel, AutoVideoProcessor
+import torch
+
+repo = "facebook/vjepa2-vitl-fpc64-256"
+processor = AutoVideoProcessor.from_pretrained(repo)
+model = AutoModel.from_pretrained(repo, attn_implementation="sdpa").eval()
+
+# frames: uint8 or float, 16 x 3 x 256 x 256, in temporal order
+batch = processor(frames, return_tensors="pt")
+with torch.no_grad():
+    out = model(**batch, output_hidden_states=True, skip_predictor=True)
+# out.hidden_states[1 + layer] is block `layer`, shape (1, 2048, 1024)
+pooled = out.hidden_states[1 + layer].mean(dim=1)</pre>
+  </section>
+
+  <section id="repos">
+    <h2>What to clone, and what to leave alone</h2>
+    <table>
+      <thead><tr><th>Repo</th><th>Use it for</th><th>Do not expect</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><a href="https://github.com/facebookresearch/vjepa2">facebookresearch/vjepa2</a></td>
+          <td>The architecture the README names, <code>vjepa2_vit_large</code>, and the checkpoint notes. Weights also load from Hugging Face as <a href="https://huggingface.co/facebook/vjepa2-vitl-fpc64-256">facebook/vjepa2-vitl-fpc64-256</a>.</td>
+          <td>No probing or steering code. Prefer Transformers for hidden states unless a hook in the official repo is clearer.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/huggingface/transformers">huggingface/transformers</a></td>
+          <td><code>VJEPA2Model</code> with <code>output_hidden_states</code> and <code>skip_predictor</code>. Documented at the <a href="https://huggingface.co/docs/transformers/model_doc/vjepa2">V-JEPA 2 model page</a>.</td>
+          <td>The attentive pooler is for classification checkpoints. This experiment uses mean-pooled encoder states, not that pooler.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/Leesangoh/PEZ-Reproduction">Leesangoh/PEZ-Reproduction</a></td>
+          <td>The only public attempt at Figure 2. Useful as a warning: residual tap (pre vs post block) and temporal pooling were unspecified in the paper and changed their curves. They report direction rising at layer 8 when they pool the last time step.</td>
+          <td>Not a method to copy. They regenerate Kubric data, chase exact R², and do not implement nullspace or steering. This take-home already has videos.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/shauli-ravfogel/nullspace_projection">shauli-ravfogel/nullspace_projection</a></td>
+          <td>The reference algorithm behind “remove the linear readout and try again.” Read <code>src/debias.py</code> for the geometry.</td>
+          <td>Their code removes a classification attribute from word vectors. The paper’s version is shorter: QR the regression weights and subtract the projector. Implementing that is about a page, not a port.</td>
+        </tr>
+        <tr>
+          <td>scikit-learn</td>
+          <td><code>Ridge</code>, <code>GroupKFold</code>, and <code>r2_score</code>. Enough for every probe in Part 1.</td>
+          <td>No video model.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>There is no author-released code for Joseph et al. The project page links the preprint and does not link a repository. Sonia Joseph’s GitHub does not contain this paper.</p>
+  </section>
+
+  <section>
+    <h2>A finished Part 1</h2>
+    <p>Three figures, each with the split and the pooling written on it. First, R² against layer for direction, speed, and acceleration, with a marked layer. Second, validation score against nullspace iteration at that layer, direction and one scalar on the same axes. Third, held-out circular error to the target and to the true angle, against the number of probes in the steering basis.</p>
+    <p>The interpretation the paper wants, and the one to test rather than assume: scalars are available early, direction arrives later and redundantly, and changing direction means moving many of those directions together. If the sawtooth or the multi-probe steering fails on this simpler video, that failure is a result. Say which choice (pooling, layer, target scaling) it depended on.</p>
+  </section>
+
+  <footer>
+    Sources: Joseph et al., Interpreting Physics in Video World Models, arXiv:2602.07050, especially Sections 5 and 7 and Appendices B, C.11, and C.12; the take-home README Part 1 and DATA.md. Curves and the steering dial illustrate the paper’s reported shapes. They are not measurements on these clips.
+  </footer>
+</div>
+<script>
+const layers = 24;
+const emergeAt = 8;
+
+function dirCurve(t) {
+  const emerge = 1 / (1 + Math.exp(-16 * (t - 0.34)));
+  const peak = 0.18 + 0.78 * emerge;
+  return peak * (1 - 0.18 * Math.max(0, (t - 0.72) / 0.28));
+}
+function speedCurve(t) {
+  return Math.min(0.96, 0.74 + 0.22 * t) * (1 - 0.06 * Math.max(0, (t - 0.8) / 0.2));
+}
+function accelCurve(t) {
+  return Math.min(0.94, 0.7 + 0.2 * t) * (1 - 0.05 * Math.max(0, (t - 0.78) / 0.22));
+}
+
+function pathFor(fn) {
+  let d = "";
+  for (let i = 0; i < layers; i++) {
+    const x = 36 + (i / (layers - 1)) * 464;
+    const y = 190 - fn(i / (layers - 1)) * 160;
+    d += (i === 0 ? "M" : "L") + x.toFixed(1) + " " + y.toFixed(1);
+  }
+  return d;
+}
+
+const band = document.getElementById("band");
+const x0 = 36 + (7 / 23) * 464;
+const x1 = 36 + (9 / 23) * 464;
+band.setAttribute("x", x0);
+band.setAttribute("width", x1 - x0);
+document.getElementById("p-speed").setAttribute("d", pathFor(speedCurve));
+document.getElementById("p-accel").setAttribute("d", pathFor(accelCurve));
+document.getElementById("p-dir").setAttribute("d", pathFor(dirCurve));
+
+const layerHost = document.getElementById("layers");
+for (let i = 0; i < layers; i++) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = String(i);
+  b.dataset.layer = String(i);
+  if (i >= 7 && i <= 9) b.classList.add("zone");
+  b.addEventListener("click", () => selectLayer(i));
+  layerHost.appendChild(b);
+}
+
+function regime(i) {
+  if (i < 6) return "Scalars are already readable. Direction is still weak and spatially fragmented.";
+  if (i < 10) return "Physics Emergence Zone in the paper. Direction becomes linearly available here on their data.";
+  if (i < 18) return "Middle of the network, where their probes peak, then start to give ground.";
+  return "Late layers. Their physics readouts are a bit worse than the middle-layer peak.";
+}
+
+function selectLayer(i) {
+  document.querySelectorAll(".layers button").forEach((b) => {
+    b.classList.toggle("on", Number(b.dataset.layer) === i);
+  });
+  const x = 36 + (i / 23) * 464;
+  const cursor = document.getElementById("cursor");
+  cursor.setAttribute("x1", x);
+  cursor.setAttribute("x2", x);
+  const rows = [
+    ["var(--dir)", "Direction", dirCurve(i / 23)],
+    ["var(--speed)", "Speed", speedCurve(i / 23)],
+    ["var(--accel)", "Acceleration", accelCurve(i / 23)]
+  ];
+  document.getElementById("readout").innerHTML =
+    rows.map(([c, name, v]) =>
+      `<div><p><span class="swatch" style="background:${c}"></span>${name}</p><p>${v.toFixed(2)}</p></div>`
+    ).join("") +
+    `<p class="note mute">Layer ${i}. ${regime(i)}</p>`;
+}
+selectLayer(8);
+
+function saw(k) {
+  const pair = Math.floor(k / 2);
+  const odd = k % 2;
+  const base = Math.max(0.05, 0.92 - pair * 0.07);
+  return odd ? base * 0.72 : base;
+}
+function smoothDecay(k) {
+  return Math.max(0.04, 0.9 * Math.exp(-k / 7));
+}
+function nullPath(fn) {
+  let d = "";
+  for (let k = 0; k <= 24; k++) {
+    const x = 28 + (k / 24) * 372;
+    const y = 156 - fn(k) * 130;
+    d += (k === 0 ? "M" : "L") + x.toFixed(1) + " " + y.toFixed(1);
+  }
+  return d;
+}
+document.getElementById("saw").setAttribute("d", nullPath(saw));
+document.getElementById("smooth").setAttribute("d", nullPath(smoothDecay));
+
+function setNull(k) {
+  const x = 28 + (k / 24) * 372;
+  document.getElementById("saw-dot").setAttribute("cx", x);
+  document.getElementById("saw-dot").setAttribute("cy", 156 - saw(k) * 130);
+  document.getElementById("smooth-dot").setAttribute("cx", x);
+  document.getElementById("smooth-dot").setAttribute("cy", 156 - smoothDecay(k) * 130);
+  const pair = k % 2 === 1 ? "Inside a sine/cosine pair: direction dips, then the next probe recovers part of it." : "Start of a pair: direction is still partly readable in a fresh direction.";
+  document.getElementById("null-label").textContent =
+    `Iteration ${k}. ${pair} Speed just keeps falling.`;
+}
+document.getElementById("kslide").addEventListener("input", (e) => setNull(Number(e.target.value)));
+setNull(0);
+
+function paperMae(n) {
+  if (n <= 0) return 82.9;
+  if (n <= 5) return 82.9 - (82.9 - 55) * (n / 5);
+  if (n <= 20) return 55 - (55 - 11.9) * ((n - 5) / 15);
+  return 11.9;
+}
+function setSteer(n) {
+  const mae = paperMae(n);
+  const ang = -Math.PI / 2 + (mae / 180) * Math.PI;
+  const x = 80 + Math.cos(ang) * 58;
+  const y = 80 + Math.sin(ang) * 58;
+  document.getElementById("read-arm").setAttribute("x2", x.toFixed(1));
+  document.getElementById("read-arm").setAttribute("y2", y.toFixed(1));
+  document.getElementById("mae-target").innerHTML = `${mae.toFixed(0)}° <span>to target</span>`;
+  const note = n === 0
+    ? "No intervention. The held-out probe still reads the true direction, about 83° from a fixed target."
+    : n < 8
+    ? "A handful of probes is the paper’s failure case. The angle barely moves."
+    : "Coordinated subspace edit. Their held-out probe starts reading the target.";
+  document.getElementById("steer-note").textContent = `${n} probes. ${note}`;
+}
+document.getElementById("nslide").addEventListener("input", (e) => setSteer(Number(e.target.value)));
+setSteer(0);
+</script>
+</body>
+</html>

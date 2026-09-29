@@ -1,0 +1,1246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The whole arc: physics inside a frozen video encoder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,460;0,7..72,650;1,7..72,460&family=Sora:wght@420;560;680&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<style>
+  :root {
+    --field: #e4ecee;
+    --sheet: #f7fafa;
+    --ink: #142028;
+    --mute: #3a4c54;
+    --line: #c3cfd4;
+    --disk: #1d4ed8;
+    --speed: #0f766e;
+    --accel: #9f1239;
+    --band: #d89a1a;
+    --tube: #8a5a12;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    font-family: Literata, "Iowan Old Style", Palatino, serif;
+    font-size: 18px;
+    line-height: 1.58;
+  }
+  a { color: var(--disk); }
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--disk);
+    outline-offset: 3px;
+  }
+  .shell {
+    display: grid;
+    grid-template-columns: 196px minmax(0, 1fr);
+    gap: 28px;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px 22px 96px;
+  }
+  .rail {
+    position: sticky;
+    top: 16px;
+    align-self: start;
+    max-height: calc(100vh - 32px);
+    overflow: auto;
+    font-family: Sora, "Avenir Next", sans-serif;
+    font-size: 13px;
+    line-height: 1.35;
+  }
+  .rail p { margin: 0 0 10px; color: var(--mute); font-size: 12px; max-width: none; }
+  .rail a {
+    display: block;
+    color: var(--mute);
+    text-decoration: none;
+    padding: 5px 0 5px 12px;
+    border-left: 2px solid var(--line);
+  }
+  .rail a[aria-current="true"] {
+    color: var(--ink);
+    border-left-color: var(--disk);
+    font-weight: 560;
+  }
+  h1, h2, h3, .ui { font-family: Sora, "Avenir Next", sans-serif; font-weight: 560; letter-spacing: -0.03em; line-height: 1.18; }
+  h1 { font-size: 40px; font-weight: 680; margin: 0 0 12px; max-width: 18ch; }
+  h2 { font-size: 28px; margin: 0 0 8px; max-width: 22ch; }
+  h3 { font-size: 17px; margin: 0 0 8px; }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  .lede { font-size: 20px; max-width: 46ch; }
+  .ask { color: var(--mute); font-size: 17px; max-width: 62ch; }
+  .mute { color: var(--mute); }
+  code { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 0.86em; }
+  section { margin-top: 56px; }
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 0.92fr) minmax(300px, 1.08fr);
+    gap: 28px;
+    align-items: end;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--line);
+  }
+  .findings { margin: 8px 0 0; padding: 0; list-style: none; max-width: 52ch; }
+  .findings li {
+    margin: 0 0 10px;
+    padding-left: 14px;
+    border-left: 3px solid var(--line);
+  }
+  .findings li:nth-child(1) { border-color: var(--speed); }
+  .findings li:nth-child(2) { border-color: var(--disk); }
+  .findings li:nth-child(3) { border-color: var(--band); }
+  .instrument, .panel, .hinge {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 14px 14px 12px;
+  }
+  .hinge { margin-top: 16px; border-left: 3px solid var(--band); }
+  .hinge p:last-child { margin-bottom: 0; }
+  .caption, .note {
+    font-family: Sora, sans-serif;
+    font-size: 12.5px;
+    color: var(--mute);
+    margin: 8px 0 0;
+    max-width: none;
+    line-height: 1.45;
+  }
+  .split { display: grid; grid-template-columns: 1.12fr 0.88fr; gap: 26px; align-items: start; }
+  .split.even { grid-template-columns: 1fr 1fr; }
+  table { width: 100%; border-collapse: collapse; font-size: 15.5px; margin: 0 0 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); }
+  th { font-family: Sora, sans-serif; font-size: 13px; font-weight: 560; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; padding-right: 12px; }
+  .formula {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 10px 14px;
+    margin: 0 0 12px;
+    overflow-x: auto;
+    max-width: 68ch;
+  }
+  .toolbar, .pathrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+  button.chip {
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  button.chip[aria-pressed="true"] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+  label.slider {
+    display: grid;
+    grid-template-columns: 92px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    margin: 8px 0;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--ink); }
+  .readout {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .readout p, .metric p { margin: 0; max-width: none; }
+  .metric strong {
+    display: block;
+    font-family: Sora, sans-serif;
+    font-size: 22px;
+    font-weight: 680;
+    letter-spacing: -0.04em;
+  }
+  .metric span { font-family: Sora, sans-serif; font-size: 12px; color: var(--mute); }
+  svg.chart, svg.stage { width: 100%; height: auto; display: block; background: #fff; border: 1px solid var(--line); }
+  canvas.disk { width: 100%; height: auto; display: block; background: #101418; border: 1px solid var(--line); }
+  .stage-wrap { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(180px, 0.75fr); gap: 12px; }
+  .belief { border: 1px solid var(--line); background: #fff; padding: 10px; }
+  .bar-row { display: grid; grid-template-columns: 108px 1fr 48px; gap: 6px; align-items: center; margin: 4px 0; font-family: Sora, sans-serif; font-size: 11px; color: var(--mute); }
+  .bar-track { height: 9px; background: #e7eeef; }
+  .bar-fill { height: 9px; width: 0%; background: var(--disk); }
+  .bar-fill.alt { background: var(--accel); }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px 16px; font-family: Sora, sans-serif; font-size: 12px; margin-top: 8px; }
+  .swatch { display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; }
+  .glossary input {
+    font-family: Sora, sans-serif;
+    font-size: 14px;
+    width: min(100%, 360px);
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+  details.term { border-bottom: 1px solid var(--line); padding: 8px 0; }
+  details.term summary { cursor: pointer; font-family: Sora, sans-serif; font-size: 15px; font-weight: 560; }
+  details.term p { margin: 8px 0 4px; }
+  .next-item { margin: 0 0 18px; max-width: 68ch; }
+  .next-item h3 { max-width: none; }
+  footer { margin-top: 64px; color: var(--mute); font-size: 15px; }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; padding-top: 12px; }
+    .rail { position: static; max-height: none; display: flex; gap: 0; overflow: auto; border-bottom: 1px solid var(--line); margin: 0 -8px 8px; }
+    .rail p { display: none; }
+    .rail a { white-space: nowrap; border-left: 0; border-bottom: 2px solid transparent; padding: 8px 12px; }
+    .rail a[aria-current="true"] { border-bottom-color: var(--disk); }
+    .hero, .split, .split.even, .stage-wrap, .readout { grid-template-columns: 1fr; }
+    h1 { font-size: 32px; }
+    label.slider { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="rail" aria-label="Research arc">
+    <p>The order the questions were actually asked</p>
+    <a href="#picture">The picture</a>
+    <a href="#world">The world</a>
+    <a href="#papers">The two papers</a>
+    <a href="#terms">Terms you will need</a>
+    <a href="#layers">Where it becomes readable</a>
+    <a href="#nullspace">How many dimensions</a>
+    <a href="#steering">Whether you can edit it</a>
+    <a href="#spline">Is it a curve</a>
+    <a href="#pullback">Is the curve the only path</a>
+    <a href="#tube">The tube</a>
+    <a href="#why">Why the tube is thick</a>
+    <a href="#decisions">Design choices</a>
+    <a href="#numbers">How to read the numbers</a>
+    <a href="#next">What is still open</a>
+  </nav>
+
+  <main>
+    <header class="hero" id="picture">
+      <div>
+        <p class="mute ui" style="margin-bottom:8px">V-JEPA 2 on the blue-disk clips, both papers</p>
+        <h1>A circle you can walk, inside a tube you have to steer</h1>
+        <p class="lede">Every experiment after the first one was an attempt to say what kind of shape direction is. The shape that survived is a circle with thickness.</p>
+        <ol class="findings">
+          <li>Speed and acceleration magnitude are already linear at layer 0, and they live in a handful of dimensions. A straight line steers them. A curve does not help.</li>
+          <li>Direction is weak at the start and jumps at layer 5. Walking a periodic spline through the angle centroids passes through the angles in between. A straight chord teleports.</li>
+          <li>That circle is a spine, not the whole representation. About two directions in the tube around it hit a target angle as well as twenty orthogonal probes, and they do it without giving up the ordered walk.</li>
+        </ol>
+      </div>
+      <div class="instrument">
+        <svg class="stage" viewBox="0 0 460 280" role="img" aria-labelledby="hero-title">
+          <title id="hero-title">A circular spine with a tubular neighborhood, and a chord cutting through the interior</title>
+          <text x="16" y="22" font-family="Sora, sans-serif" font-size="12" fill="#3a4c54">Layer 5, direction, drawn as the result rather than the method</text>
+          <circle cx="168" cy="156" r="78" fill="#d89a1a" opacity="0.28"/>
+          <circle cx="168" cy="156" r="62" fill="none" stroke="#1d4ed8" stroke-width="2.6"/>
+          <line x1="168" y1="94" x2="168" y2="218" stroke="#9f1239" stroke-width="2" stroke-dasharray="5 4"/>
+          <circle cx="168" cy="94" r="4.5" fill="#142028"/>
+          <circle cx="168" cy="218" r="4.5" fill="#142028"/>
+          <circle id="hero-walk" cx="106" cy="156" r="6" fill="#1d4ed8" stroke="#fff" stroke-width="1.5"/>
+          <line x1="168" y1="156" x2="214" y2="132" stroke="#8a5a12" stroke-width="2"/>
+          <line x1="168" y1="156" x2="132" y2="128" stroke="#8a5a12" stroke-width="2"/>
+          <text x="250" y="78" font-family="Sora, sans-serif" font-size="13" fill="#1d4ed8">Spine</text>
+          <text x="250" y="96" font-family="Literata, serif" font-size="13" fill="#142028">periodic spline on angle</text>
+          <text x="250" y="128" font-family="Sora, sans-serif" font-size="13" fill="#8a5a12">Tube</text>
+          <text x="250" y="146" font-family="Literata, serif" font-size="13" fill="#142028">speed, motion, and copies</text>
+          <text x="250" y="178" font-family="Sora, sans-serif" font-size="13" fill="#9f1239">Chord</text>
+          <text x="250" y="196" font-family="Literata, serif" font-size="13" fill="#142028">straight cut, readout jumps</text>
+          <text x="250" y="228" font-family="Literata, serif" font-size="13" fill="#3a4c54">Two brown arrows are the</text>
+          <text x="250" y="246" font-family="Literata, serif" font-size="13" fill="#3a4c54">normal directions that</text>
+          <text x="250" y="264" font-family="Literata, serif" font-size="13" fill="#3a4c54">close the endpoint gap.</text>
+        </svg>
+        <p class="caption">Blue is the 1D concept. Amber is the neighborhood activations actually occupy. Red is what linear steering does on a half turn. The rest of this page is how that picture was earned, in order, and which pieces of it are still guesses.</p>
+      </div>
+    </header>
+
+    <section id="world">
+      <h2>The world being measured</h2>
+      <p class="ask">A frozen video encoder, and three sets of clips that change one physical knob at a time.</p>
+      <div class="split">
+        <div>
+          <p>V-JEPA 2 is a video world model. Its encoder turns a clip into a latent sequence. During pretraining, a predictor tries to guess the latent of masked parts of the video. Nothing in this project trains that model, and nothing runs the predictor. The object of study is the encoder’s residual stream: the vector sitting after each transformer block.</p>
+          <p>The checkpoint is <code>facebook/vjepa2-vitl-fpc64-256</code>. ViT-L, 24 blocks, width 1024, patch size 16, tubelet 2, crop 256. The “64” in the name is a pretraining frame count. It does not change the encoder. Every clip here is 16 frames, and those 16 frames are what gets fed in. Repeating frames to fake a longer clip would destroy speed and acceleration.</p>
+          <p>Each clip is a blue disk on a dark background, 256×256, 24 fps. Three datasets, generated separately:</p>
+          <table>
+            <thead><tr><th>Dataset</th><th>Clips</th><th>What varies</th><th class="num">Train / val / test</th></tr></thead>
+            <tbody>
+              <tr><td>Direction</td><td>1,500</td><td>64 angles, step 5.625°. Half constant velocity, half accelerating.</td><td class="num">1,116 / 128 / 256</td></tr>
+              <tr><td>Speed</td><td>1,536</td><td>64 magnitudes from 0.25 to 4.0 m/s. Motion is always constant velocity.</td><td class="num">1,088 / 128 / 320</td></tr>
+              <tr><td>Acceleration</td><td>1,536</td><td>64 magnitudes from 0.25 to 10 m/s². Initial speed is 0.</td><td class="num">1,088 / 128 / 320</td></tr>
+            </tbody>
+          </table>
+          <p>Splits are seed 0, stratified so every label bin appears in train, validation, and test. Cross-validation groups clips by start position, quantized to 0.5 m, so a probe cannot memorize “this corner of the frame means this angle.” The test ids are locked before any probe, any QR, or any spline is fit.</p>
+        </div>
+        <div class="instrument" id="stimulus">
+          <div class="toolbar" role="group" aria-label="Which physical knob">
+            <button type="button" class="chip" data-stim="direction" aria-pressed="true">Direction</button>
+            <button type="button" class="chip" data-stim="speed" aria-pressed="false">Speed</button>
+            <button type="button" class="chip" data-stim="accel" aria-pressed="false">Acceleration</button>
+          </div>
+          <canvas class="disk" id="disk" width="640" height="360" aria-label="Blue disk moving on a dark field"></canvas>
+          <label class="slider" id="stim-label">Angle
+            <input id="stim" type="range" min="0" max="1000" value="180">
+            <span id="stim-read">90°</span>
+          </label>
+          <p class="caption" id="stim-note">Direction clips hold speed fixed and change heading. The arrow is the velocity. In the real set, half of these clips are accelerating instead.</p>
+        </div>
+      </div>
+      <div class="panel" style="margin-top:16px">
+        <h3>What comes out of one forward pass</h3>
+        <p>Sixteen frames, tubelet 2, so 8 temporal steps. A 16-pixel patch on a 256 image is a 16×16 grid. That is 8 × 16 × 16 = 2048 tokens, each of size 1024. <code>hidden_states[0]</code> is the patch embedding. <code>hidden_states[1 + ℓ]</code> is the residual after block ℓ, for ℓ from 0 to 23. The paper’s layer index is ℓ, the block, not the tuple index.</p>
+        <p>Every later experiment uses the mean of those 2048 tokens. One vector per layer per clip. The saved tensor is <code>(N, 24, 1024)</code>. This is the paper’s primary probe input: linear probes on mean-pooled space–time patches. A last-tubelet pooling ablation was planned only if direction was already strong at layer 0. It was not, so the rest of the pipeline stays on the mean.</p>
+      </div>
+    </section>
+
+    <section id="papers">
+      <h2>Two papers, two questions</h2>
+      <p class="ask">Part 1 asks whether physics is in the latent. Part 2 asks what shape that latent has, because the shape is what you steer along.</p>
+      <div class="split even">
+        <div class="panel">
+          <h3>Joseph et al., the physics paper</h3>
+          <p><em>Interpreting Physics in Video World Models</em>, arXiv:2602.07050. They probe video world models, including V-JEPA 2-L, on rendered balls. Three claims this project tried to reproduce, qualitatively, on a simpler disk:</p>
+          <p>Speed and acceleration magnitude are linearly readable from the early layers. Direction becomes readable only around a third of the way through the network — their Physics Emergence Zone, layer 8 of 24 on V-JEPA 2-L. Direction is stored redundantly, on the order of 40–50 features, with a sawtooth as you delete them. Speed is lower-dimensional and decays smoothly. Editing one probe axis barely moves decoded angle. Coordinating about 20 orthogonal probes, on held-out clips, drops error to a fixed target from roughly 83° to roughly 12°.</p>
+          <p>The method lives in Appendix B (layer probes), C.11 (iterative nullspace), and C.12 (multi-probe steering). Sibling page: <a href="explainer.html">the Part 1 method sketch</a>.</p>
+        </div>
+        <div class="panel">
+          <h3>Wurgaft et al., the manifold paper</h3>
+          <p><em>Manifold Steering Reveals the Shared Geometry of Neural Network Representation and Behavior</em>, arXiv:2605.05115, from Goodfire. They argue that concepts in a network form curves, and that steering should walk the curve rather than cut the chord. On a circle, the chord crosses the interior and the model’s outputs jump to a mixture of the endpoints. The spline passes through neighboring concepts.</p>
+          <p>Language models have a distribution over tokens, so they can build a second curve in behavior space and test whether the two curves are isometric. V-JEPA has no concept vocabulary. The relevant precedent in their paper is mountain car: a small visual world model, a curve through encoder states parameterized by position, and a manufactured “belief” given by softmax over distance to those centroids. Sibling page: <a href="manifold_explainer.html">the spline method sketch</a>.</p>
+        </div>
+      </div>
+      <p style="margin-top:16px">The handoff between the papers is the interesting part. Joseph says direction is a high-dimensional subspace you edit with many probes. Goodfire says a concept is a 1D curve. Both can be true if the extra dimensions are thickness around the curve rather than extra concepts. That sentence is the hypothesis the later experiments were built to test. It was not assumed at the start.</p>
+    </section>
+
+    <section id="terms">
+      <h2>Terms, before the plots</h2>
+      <p class="ask">The same few objects get reused under new names. This is the short list. The glossary at the bottom is the long one.</p>
+      <div class="formula">\[ \hat{y} = Wh + b \]</div>
+      <p>A <strong>probe</strong> is that linear map. \(h\) is the pooled residual, 1024 numbers. For speed and acceleration, \(y\) is the scalar in m/s or m/s². For direction, \(y\) is the pair \((\sin\theta, \cos\theta)\), and the loss is mean squared error on that pair. Training on the wrapped angle is a different experiment and was not done. Sine and cosine are smooth at 0°/360°; a raw angle is not.</p>
+      <div class="formula">\[ \mathrm{err} = \big((\hat\theta - \theta + 180^\circ) \bmod 360^\circ\big) - 180^\circ \]</div>
+      <p><strong>Circular MAE</strong> is the mean of the absolute wrapped error, in degrees. Predicting <code>atan2</code> of the sine/cosine pair gives \(\hat\theta\). Chance, if you guess randomly on a uniform circle, is 90°. An R² of 1 means the probe matches the labels. An R² of 0 means it does no better than predicting the training mean. Negative R² means it does worse than that mean.</p>
+      <p>A <strong>centroid</strong> is the average activation of every training clip with one exact label: one point per angle, or per speed. A <strong>spline</strong> is a smooth curve through those centroids, in order. The <strong>chord</strong> is the straight line between two centroids. The <strong>spine</strong> is the spline, once the later experiments have shown that activations do not sit on it — they sit around it. The <strong>tube</strong> is that neighborhood, measured perpendicular to the spline’s tangent.</p>
+    </section>
+
+    <section id="layers">
+      <h2>Where each variable becomes readable</h2>
+      <p class="ask">If direction only appears halfway through the network, that is where a steering experiment should intervene. The layer sweep exists to find that place, not to decorate a plot.</p>
+      <div class="split">
+        <div>
+          <p>At every layer, a linear probe is trained with Adam for 100 epochs, full batch, MSE. The paper’s 20-pair sweep over learning rate and weight decay is run inside each fold. Scores are 5-fold <code>GroupKFold</code> on train+val only. The layer itself is chosen on a separate refit: train on the whole train split, score on val. Test clips never enter this choice.</p>
+          <p>The selection rule, applied to velocity-only direction, because the mixed direction set blurs the rise:</p>
+          <div class="formula">\[ L_{\mathrm{emerg}} = \min\left\{\ell : R^2(\ell) \ge \tfrac{1}{2}\big(R^2(0) + R^2_{\max}\big)\right\} \]</div>
+          <p>Use \(L_{\mathrm{emerg}}\) as \(L^\star\) if speed and acceleration are both at least R² 0.5 there. Otherwise use the peak. On this data \(R^2(0) = 0.23\), the max on the val table is 0.97 at layer 23, the midpoint threshold is crossed at layer 5, and both scalars are above 0.5 there (0.95 and 0.92). So \(L^\star = 5\). The paper’s layer on Kubric balls was 8. The rule was followed; 8 was not hard-coded.</p>
+          <p>The temporal-last pooling check was specified to run only if velocity direction was already above R² 0.5 at layer 0. It was 0.23, so that ablation never ran.</p>
+        </div>
+        <div class="instrument">
+          <svg class="chart" id="layer-svg" viewBox="0 0 520 250" role="img" aria-labelledby="layer-title"></svg>
+          <label class="slider">Layer
+            <input id="layer" type="range" min="0" max="23" value="5">
+            <span id="layer-read">5</span>
+          </label>
+          <div class="readout" id="layer-readout"></div>
+          <p class="caption">Validation R² after the train refit. Blue is direction on constant-velocity clips, the series that picked \(L^\star\). Teal is speed, rose is acceleration. The amber tint marks layers 7–9, the paper’s emergence zone, drawn only as a reference.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Series, val R²</th><th class="num">Layer 0</th><th class="num">Layer 5</th><th class="num">Layer 8</th><th class="num">Layer 23</th></tr></thead>
+        <tbody>
+          <tr><td>Direction, velocity clips</td><td class="num">0.23</td><td class="num">0.93</td><td class="num">0.96</td><td class="num">0.97</td></tr>
+          <tr><td>Speed</td><td class="num">0.80</td><td class="num">0.95</td><td class="num">0.96</td><td class="num">0.96</td></tr>
+          <tr><td>Acceleration</td><td class="num">0.79</td><td class="num">0.92</td><td class="num">0.94</td><td class="num">0.94</td></tr>
+        </tbody>
+      </table>
+      <p>Same qualitative story as their Figure 2c: scalars early, direction later. Three differences matter if you want to go further. Emergence is at layer 5, about a fifth of the depth, rather than layer 8. Their direction softens toward the output; ours keeps climbing, with the val peak at layer 23. And the jump is shared by the accelerating half of the direction set, so “direction emerges” is not an artifact of constant-velocity clips alone.</p>
+      <div class="hinge">
+        <h3>What this forced next</h3>
+        <p>Scalars are available immediately and stay available. Direction is the variable with a location. Every causal experiment after this one is run at layer 5, because that is the first layer where the direction probe has crossed the midpoint of its rise and the scalars are already reliable. Layer 23 being slightly better at reading direction is noted, and then deliberately not used: the comparison with the paper is about the emergence layer, and a late layer is a different object (the tube-why filmstrip comes back to this).</p>
+      </div>
+    </section>
+
+    <section id="nullspace">
+      <h2>How many dimensions, once you can read it</h2>
+      <p class="ask">A single probe direction can be a fluke, or one copy of a feature the network stores many times. Iterative nullspace probing deletes the probe and asks whether the label is still there.</p>
+      <div class="split">
+        <div>
+          <p>At layer 5 only, with a fixed recipe from Appendix C.11: Adam, learning rate \(10^{-3}\), weight decay \(10^{-4}\), 100 epochs for direction and 50 for the scalars. No learning-rate sweep. That is why the first direction probe here has val R² about 0.75, lower than the 0.93 from the swept layer curve. Different training recipe, same activations.</p>
+          <div class="formula">\[ X \leftarrow X - X Q Q^{\top} \]</div>
+          <p>\(Q\) is a reduced QR of the probe weight, transposed so the columns span the rows of \(W\). Direction’s \(W\) is \(2 \times 1024\), so each kept probe removes up to two dimensions. A scalar probe removes one. The bias is used for prediction and is not part of the subspace. Validation activations are projected with the same \(Q\). The score recorded for probe \(k\) is the score before that probe’s direction is removed.</p>
+          <p>Stop, on val, from C.11 rather than the looser cutoffs in the paper’s figure caption. Direction: R² under 0.1, or circular MAE over 80°. Scalars: R² under 0.05, or MAE over 0.9 times the error of predicting the training-set mean. The probe that crosses the threshold is not kept and is not used for steering.</p>
+        </div>
+        <div class="instrument">
+          <div class="toolbar" role="group" aria-label="Which nullspace run">
+            <button type="button" class="chip" data-null="direction" aria-pressed="true">Direction</button>
+            <button type="button" class="chip" data-null="speed" aria-pressed="false">Speed</button>
+            <button type="button" class="chip" data-null="accel" aria-pressed="false">Acceleration</button>
+          </div>
+          <svg class="chart" id="null-svg" viewBox="0 0 520 240" role="img" aria-labelledby="null-title"></svg>
+          <label class="slider">Iteration
+            <input id="null-k" type="range" min="0" max="41" value="0">
+            <span id="null-k-read">0</span>
+          </label>
+          <p class="metric" id="null-metric"></p>
+          <p class="caption" id="null-caption"></p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Run at layer 5</th><th class="num">Probes kept</th><th class="num">Dimensions</th><th>Sawtooth flag</th><th>What actually stopped it</th></tr></thead>
+        <tbody>
+          <tr><td>Direction, velocity (the quoted run)</td><td class="num">41</td><td class="num">82</td><td>Yes</td><td>R² fell to 0.065. MAE was 68°, so the 80° rule had not fired.</td></tr>
+          <tr><td>Direction, accelerating clips</td><td class="num">31</td><td class="num">62</td><td>Yes</td><td>Same R² rule, fewer copies.</td></tr>
+          <tr><td>Direction, all clips</td><td class="num">23</td><td class="num">46</td><td>Yes</td><td>Mixing the two motion types shortens the count.</td></tr>
+          <tr><td>Speed</td><td class="num">5</td><td class="num">5</td><td>No</td><td>MAE crossed 0.9× the mean-baseline while R² was still 0.13.</td></tr>
+          <tr><td>Acceleration</td><td class="num">2</td><td class="num">2</td><td>No</td><td>R² fell to 0.037.</td></tr>
+        </tbody>
+      </table>
+      <p>The direction curve is jagged: it drops, then partially recovers, repeatedly, including a late spike back to R² 0.57 at iteration 24. The paper reads that pattern as sine/cosine partners — delete one axis of a pair and the next probe finds the other. On this run the jag is real and irregular, not a perfect every-other-step tooth. Speed is not that pattern, but it is also not a monotone slide: R² goes 0.88, 0.41, 0.77, 0.54, 0.54, then 0.13 at the stopped probe. One deletion hurts, another direction still carries speed, and then it runs out. Calling speed “smooth” is the comparison with the direction sawtooth, not a claim that the five steps are monotone.</p>
+      <p>Dimensionality here is rule-relative. The paper’s display of speed ran for ~25 probes under a looser cutoff. Our quoted “5” is the C.11 stop. The stable comparison, which does not depend on the exact cutoff, is direction ≫ speed ≫ acceleration.</p>
+      <div class="hinge">
+        <h3>What this forced next</h3>
+        <p>Eighty-two dimensions of direction can mean eighty-two different concepts, or many copies of one angle. The scalars being tiny makes the contrast sharp: if a variable is basically one direction in activation space, you do not need a curve to steer it. Direction might. The steering experiment asks whether those copies are causal. The spline experiment asks whether they are copies of a circle.</p>
+      </div>
+    </section>
+
+    <section id="steering">
+      <h2>Whether those dimensions control the readout</h2>
+      <p class="ask">A probe can correlate with angle without being a lever. Steering edits the activation and asks a second probe, one that did not build the edit, what angle it now sees.</p>
+      <div class="split">
+        <div>
+          <p>Only direction is steered in Part 1. The basis is the 41 velocity-subset probes from the nullspace run, fit on train. An evaluation probe is fit from scratch on unsteered test activations, with the same C.11 recipe, and then frozen. It never sees a steered vector. On this data that probe has R² 0.71 and circular MAE 19.2°. The paper’s eval probe was R² 0.99, on 8 angles rather than 64. Weaker is expected. The causal check does not require it to be perfect.</p>
+          <p>Target angle is 90° for every test clip, matching the paper. For a prefix of \(n\) probes, stack their weights, take a reduced QR to get an orthonormal \(V\), and replace coordinates inside that subspace:</p>
+          <div class="formula">\[ x_{\perp} = x - V V^{\top} x, \qquad x^{\star} = V c^{\star} + x_{\perp} \]</div>
+          <p>\(c^{\star}\) is the least-squares solution of “every included probe should output \((\sin 90^\circ, \cos 90^\circ)\),” accounting for each probe’s bias and for \(x_{\perp}\). The orthogonal complement of \(V\) is left alone. After the full edit, the steering probes themselves land on that target to numerical noise (MSE about \(10^{-13}\)). The evaluation probe is a different readout and is allowed to miss.</p>
+        </div>
+        <div class="instrument">
+          <svg viewBox="0 0 200 200" width="200" height="200" aria-hidden="true" style="display:block;margin:0 auto 8px">
+            <circle cx="100" cy="100" r="78" fill="none" stroke="#c3cfd4" stroke-width="10"/>
+            <line id="arm-true" x1="100" y1="100" x2="100" y2="22" stroke="#3a4c54" stroke-width="3"/>
+            <line id="arm-read" x1="100" y1="100" x2="178" y2="100" stroke="#1d4ed8" stroke-width="3"/>
+            <circle cx="100" cy="100" r="5" fill="#142028"/>
+          </svg>
+          <label class="slider">Probes
+            <input id="steer-n" type="range" min="0" max="7" step="1" value="0">
+            <span id="steer-n-read">n = 0</span>
+          </label>
+          <div class="readout">
+            <p class="metric"><strong id="mae-tgt">90°</strong><span>circular MAE to 90°</span></p>
+            <p class="metric"><strong id="mae-tru">19°</strong><span>circular MAE to the true angle</span></p>
+            <p class="metric"><strong id="steer-sub">all</strong><span id="steer-sub-note">256 test clips</span></p>
+          </div>
+          <div class="toolbar" role="group" aria-label="Test subset" style="margin-top:10px">
+            <button type="button" class="chip" data-sub="all" aria-pressed="true">All test</button>
+            <button type="button" class="chip" data-sub="velocity" aria-pressed="false">Velocity</button>
+            <button type="button" class="chip" data-sub="acceleration" aria-pressed="false">Accelerating</button>
+          </div>
+          <p class="caption">Gray arm is the target, 90°. Blue arm is a cartoon of the decoded angle, placed using the measured error to the target. Numbers are the held-out evaluation probe on this dataset, from <code>artifacts/results/summary.json</code>.</p>
+        </div>
+      </div>
+      <p>The signature the paper asked for is the opposing pair of curves. As \(n\) grows, error to 90° falls and error to the clip’s real angle rises. At \(n = 1\), target error is still 58°. At \(n = 5\) it is already 11°, and at \(n = 20\) it is 6.3° (4.4° with all 41). The paper needed about 20 probes to reach ~12°. We get there sooner. Plausible reasons: an earlier layer, a visually simpler disk, 64 linearly separable angles, and a large basis waiting to be used. Velocity-only and accelerating test clips move together, so the edit transfers to motion the basis was not fit on.</p>
+      <p>One subtlety in the table: \(n = 15\) is slightly worse than \(n = 10\) (12.8° versus 10.8°). More probes are not a monotone improvement. The subspace is redundant, and a bad prefix can point the least-squares solve somewhere the eval probe does not fully follow. The trend is the result. The non-monotonic wiggle is also real.</p>
+      <div class="hinge">
+        <h3>What this forced next</h3>
+        <p>Part 1 is a successful reproduction of the three qualitative claims, with an earlier emergence layer, little late-layer softening, and easier steering. It leaves the geometry unspecified. You know you need a subspace. You do not know whether that subspace is a curve, a ball, or a tube. Part 2 is the Goodfire question asked at layer 5, on the activations Part 1 already saved: if you walk a spline through the centroids, does the probe pass through the intermediate labels, and does that walk replace the 20-probe edit?</p>
+      </div>
+    </section>
+
+    <section id="spline">
+      <h2>Whether direction is a curve</h2>
+      <p class="ask">Goodfire’s claim, translated: if the concept is one-dimensional, the spline and the chord share endpoints and disagree in the middle, and only the spline’s middle is a meaningful label.</p>
+      <div>
+          <p>No new encoder pass. PCA is fit on train activations at layer 5, 64 components, about 98% of the variance for all three variables. That matches their Appendix A.3. One centroid per exact label — 64 of them, no re-binning. A cubic spline through the centroids, one spline per PCA coordinate. Speed and acceleration use a natural cubic spline (second derivative zero at the ends). Direction uses a periodic cubic spline, so 0° and 360° are the same point and the slope matches. The fit interpolates. There is no smoothing penalty.</p>
+          <p>Direction’s spline is fit on train / velocity only, so it lines up with the Part 1 steering basis. Accelerating clips are scored later as a transfer check.</p>
+          <p>A path has 21 waypoints, \(t\) from 0 to 1. The intrinsic coordinate \(u\) moves monotonically. For direction, the walk takes the shorter arc. At each waypoint the top-64 PCA block of a test activation is replaced by the path point, and the clip’s leftover coordinates — everything PCA did not keep — stay as they were. That is their Appendix A.6: edit the subspace the manifold lives in, leave the rest of the vector alone. The chord is the same endpoints, linearly interpolated in that same PCA subspace, so the comparison is path shape and not “which coordinates you were allowed to touch.”</p>
+          <div class="formula">\[ h_{\mathrm{chord}}(t) = (1-t)\, s(u_0) + t\, s(u_1) \]</div>
+          <div class="formula">\[ h_{\mathrm{spline}}(t) = s\big((1-t)\, u_0 + t\, u_1\big) \]</div>
+          <p>The readout is a fresh evaluation probe, fit on unsteered test activations and frozen. It is applied to every waypoint. It is not refit on steered vectors.</p>
+      </div>
+      <div class="instrument" id="circle-demo" style="margin-top:8px">
+          <div class="toolbar" role="group" aria-label="Which direction path">
+            <button type="button" class="chip" data-arc="half" aria-pressed="true">0° to 180°</button>
+            <button type="button" class="chip" data-arc="short" aria-pressed="false">22.5° to 337.5°</button>
+          </div>
+          <div class="stage-wrap">
+            <svg class="stage" id="circle-svg" viewBox="0 0 360 320" role="img" aria-labelledby="circle-title"></svg>
+            <div class="belief">
+              <h3 id="belief-title">Distance to eight angle bins</h3>
+              <div id="bars"></div>
+              <p class="caption" id="belief-note"></p>
+            </div>
+          </div>
+          <label class="slider">Progress
+            <input id="arc-t" type="range" min="0" max="1000" value="500">
+            <span id="arc-t-read">0.50</span>
+          </label>
+          <div class="pathrow" role="group" aria-label="Which path the bars read">
+            <button type="button" class="chip" id="read-spline" aria-pressed="true">Read the spline</button>
+            <button type="button" class="chip" id="read-chord" aria-pressed="false">Read the chord</button>
+          </div>
+          <div class="legend">
+            <span><i class="swatch" style="background:#1d4ed8"></i>Periodic spline</span>
+            <span><i class="swatch" style="background:#9f1239"></i>Chord</span>
+          </div>
+          <p class="caption" id="arc-caption">Half turn. The bars are a toy of Goodfire’s belief, softmax of squared distance to centroids with temperature 0.5. They are not the linear probe. On a diameter the center is equidistant from every bin, so the bars go flat there; the probe does not.</p>
+        </div>
+
+      <h3 style="margin-top:22px">Held-out probe, half turn 0° to 180°</h3>
+      <table>
+        <thead><tr><th>Method</th><th class="num">Mid-path error to the claimed angle</th><th class="num">Final error to the target</th><th class="num">Final error to the true angle</th></tr></thead>
+        <tbody>
+          <tr><td>Periodic spline</td><td class="num">5.5°</td><td class="num">18.6°</td><td class="num">90.0°</td></tr>
+          <tr><td>Chord, same PCA block</td><td class="num">170.9°</td><td class="num">18.6°</td><td class="num">90.0°</td></tr>
+          <tr><td>Multi-probe, 1 direction</td><td class="num">—</td><td class="num">70.3°</td><td class="num">29.5°</td></tr>
+          <tr><td>Multi-probe, 5</td><td class="num">—</td><td class="num">14.4°</td><td class="num">80.4°</td></tr>
+          <tr><td>Multi-probe, 20</td><td class="num">—</td><td class="num">8.5°</td><td class="num">86.8°</td></tr>
+        </tbody>
+      </table>
+      <p>Endpoints match by construction, so spline and chord share the final error. The middle is the whole result. 5.5° versus 171° is the Goodfire signature on this encoder: the probe follows the arc, and the chord’s readout jumps. Multi-probe toward the same endpoint, with 20 nullspace directions, still wins the endpoint, 8.5° versus 18.6°. The curve is enough to walk. It is not enough to force a distant target as hard as the redundant subspace can.</p>
+      <p>The short arc, 22.5° to 337.5°, flips the comparison. The periodic spline stays on the short side of 0°. Final error is 1.3° for both spline and chord, because the chord of a short arc barely leaves the circle. Multi-probe at 20 is worse, 8.4°. It overwrites a large subspace to aim at one angle and pays a tax that a nearby centroid does not. A non-periodic fit would have been in danger of walking the long way around; the periodic boundary condition is why this pair is informative.</p>
+
+      <h3>Speed and acceleration are the control</h3>
+      <p>If the spline-versus-chord gap is about curvature, flat variables should show almost no gap. They don’t.</p>
+      <table>
+        <thead><tr><th>Path</th><th class="num">Spline, mid</th><th class="num">Chord, mid</th><th class="num">Either, final</th><th>Eval probe on unsteered test</th></tr></thead>
+        <tbody>
+          <tr><td>Speed, 0.49 to 3.52 m/s</td><td class="num">0.37</td><td class="num">0.10</td><td class="num">0.67</td><td>R² 0.80, MAE 0.41 m/s</td></tr>
+          <tr><td>Acceleration, 1.02 to 7.99 m/s²</td><td class="num">0.58</td><td class="num">0.04</td><td class="num">2.57</td><td>R² 0.33, MAE 1.99 m/s²</td></tr>
+        </tbody>
+      </table>
+      <p>The chord is slightly closer to the claimed ramp in the middle. That is what you expect when the geometry is already linear: a cubic interpolant can wiggle between centroids, and the wiggle is not signal. Part 1’s dimensionalities (speed 5, acceleration 2) already said this. The spline is not an upgrade.</p>
+      <p>Neither scalar path lands on the exact endpoint label. Speed’s final decode is about 2.86 against a target of 3.52. The training centroid for 3.52 does not sit on this global probe’s level set for 3.52. The path reached the centroid. The probe and the centroid disagree about what that point means. That failure mode was named in the plan before the run.</p>
+      <p>Median distance from a test point to the curve, in the 64-D PCA space, is about 4.8 for all three variables. A thick cloud, even for the scalars. Thickness alone does not mean “you need a spline.” For speed, the thickness is not organized as curvature the probe cares about. For direction, the same thickness is organized around a circle the probe does walk. The next two experiments separate those cases.</p>
+      <div class="hinge">
+        <h3>What this forced next</h3>
+        <p>Direction has a usable circular spine, and a residual that multi-probe can still exploit at a hard endpoint. Two follow-ups fall out of that sentence. Pullback asks: if you optimize a path purely so the probe tracks the angle ramp, do you fall back onto the spline? Tube-not-curve asks: if you keep the spline and add a few directions perpendicular to it, do you close the 18.6° versus 8.5° gap without recreating the chord’s teleport?</p>
+      </div>
+    </section>
+
+    <section id="pullback">
+      <h2>Whether the spline is the probe’s preferred path</h2>
+      <p class="ask">In the Goodfire paper, you initialize on the chord and optimize the path until behavior tracks the concept. The optimized path falls back onto the activation curve. That is their evidence the two manifolds match. Here the same move was used as a test, not as a confirmation.</p>
+      <div class="split">
+        <div>
+          <p>Initialize on the chord. Run L-BFGS on a path in the first 32 principal components so the frozen probe’s decoded angle tracks the claimed ramp. Then measure distance, in PCA space, from the optimized path to the spline \(M_h\).</p>
+          <p>On mountain car, their pullback sits much closer to the activation curve than the chord it started from (0.29 versus 2.22 in their units). On this direction half-turn, the numbers go the other way.</p>
+          <table>
+            <thead><tr><th>Path, 0° to 180°</th><th class="num">Mean distance to the spline</th><th class="num">Mid-path error</th><th class="num">Final error</th></tr></thead>
+            <tbody>
+              <tr><td>The spline itself</td><td class="num">0.04</td><td class="num">12.5°</td><td class="num">8.8°</td></tr>
+              <tr><td>Chord, the initialization</td><td class="num">1.60</td><td class="num">174.6°</td><td class="num">8.8°</td></tr>
+              <tr><td>Pullback</td><td class="num">3.31</td><td class="num">1.05°</td><td class="num">1.17°</td></tr>
+            </tbody>
+          </table>
+          <p>Recovery relative to the chord-to-spline gap is −1.09. The optimizer gets a much better probe trajectory and moves farther from the spline than the chord was. The short-arc pullback is milder and still not a recovery onto the curve. A speed pullback did the same thing: it left the curve and nearly zeroed the scalar error, which fits a variable that was never curved.</p>
+        </div>
+        <div class="panel">
+          <h3>How to read a negative recovery</h3>
+          <p>The circle is a good skeleton for an ordered walk. It is not the unique set of activations that decode as a given angle. Many off-spine offsets still mean “this θ.” An optimizer that only cares about the probe will use those offsets, because they are shortcuts to a lower loss.</p>
+          <p>That is the definition of a tube, stated in the language of the optimization: the fiber of the direction map is thick. Pullback leaving \(M_h\) is the result, not a failed reproduction of mountain car. The encoder is a different geometry.</p>
+          <p class="mute">Absolute degrees in this table come from the pullback script’s probe. They do not match the 5.5° / 18.6° pair from the earlier spline script. Same comparison, different frozen probe. The section on reading numbers is about that.</p>
+        </div>
+      </div>
+      <div class="hinge">
+        <h3>What this forced next</h3>
+        <p>If off-spine points can still be the right angle, the endpoint gap might be closable without abandoning the spine. Pin the path to the spline, and spend a few coordinates in the perpendicular residue. If two of those coordinates match twenty probes, the Part 1 subspace and the Part 2 curve were descriptions of one object.</p>
+      </div>
+    </section>
+
+    <section id="tube">
+      <h2>Adding the tube to the walk</h2>
+      <p class="ask">Does a small normal bundle close the endpoint gap, while the middle of the path stays on the claimed angle?</p>
+      <div class="split">
+        <div>
+          <p>For each training velocity activation, find the nearest point on the direction spline, take the residual, and remove the component along the tangent \(T \propto s'(u)\):</p>
+          <div class="formula">\[ r_{\perp} = r - (r \cdot T)\, T \]</div>
+          <p>PCA on those perpendicular residuals is the tube basis \(V_k\). A second basis takes the Part 1 nullspace probe rows, orthonormalizes them, and projects them orthogonal to the tangent at the target. Steering at waypoint \(t\) is</p>
+          <div class="formula">\[ z(t) = s(u(t)) + t \cdot V_k c^{\star} \]</div>
+          <p>\(c^{\star}\) is the same least-squares idea as Part 1, now in the tube basis, with the point pinned to the spine. The factor of \(t\) ramps the tube in, so the middle of the path is still mostly the spline. Leftover coordinates outside the 64-D PCA block stay per clip.</p>
+          <p>The residual is almost entirely normal. Mean tangential energy is 0.03. Mean perpendicular energy is 26.45. Five tube components explain 64% of that residue; twenty explain 91%. The tube is real, and it is moderately low-rank. It is not a full 82-dimensional ball, and it is not a hairline curve.</p>
+        </div>
+        <div class="instrument">
+          <svg class="stage" id="tube-svg" viewBox="0 0 420 260" role="img" aria-labelledby="tube-title"></svg>
+          <div class="toolbar" id="tube-ks" role="group" aria-label="How many tube directions"></div>
+          <div class="readout" id="tube-readout"></div>
+          <p class="caption">Final and mid-path errors are the tube script’s held-out probe on 0° to 180°. Multi-probe rows have no mid-path, because that edit aims at the endpoint rather than walking a ramp.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Method on 0° to 180°</th><th class="num">Mid-path error to claimed</th><th class="num">Final error to target</th></tr></thead>
+        <tbody>
+          <tr><td>Spline only</td><td class="num">12.5°</td><td class="num">19.8°</td></tr>
+          <tr><td>Chord</td><td class="num">teleport</td><td class="num">19.8°</td></tr>
+          <tr><td>Spine + residual-PCA tube, k = 1</td><td class="num">11.7°</td><td class="num">19.7°</td></tr>
+          <tr><td>Spine + residual-PCA tube, k = 2</td><td class="num">4.2°</td><td class="num">2.8°</td></tr>
+          <tr><td>Spine + nullspace tube, k = 1</td><td class="num">4.9°</td><td class="num">2.6°</td></tr>
+          <tr><td>Multi-probe, n = 5</td><td class="num">—</td><td class="num">8.0°</td></tr>
+          <tr><td>Multi-probe, n = 20</td><td class="num">—</td><td class="num">3.5°</td></tr>
+        </tbody>
+      </table>
+      <p>One variance component does almost nothing. Two do the whole job: final error 2.8°, better than 20 multi-probe directions, and the middle stays near 4°, not a chord teleport. The first nullspace direction, orthogonalized to the tangent, matches that with k = 1. On the short arc the same k = 2 edit lands at 2.4°, against 7.1° for the spline alone and 3.9° for 20 probes.</p>
+      <p>So the practical recipe on this data is: walk the periodic spline when you care about intermediate angles, and add about two normal coordinates when you care about hitting the endpoint. The 82-dimensional Part 1 edit and the 1D Part 2 walk were two slices of that recipe.</p>
+      <div class="hinge">
+        <h3>What this forced next</h3>
+        <p>The tube works as a control surface. It does not say what the thickness is made of. A fiber of the angle map, a bundle of other physical variables, redundant copies of the probe, an uncertainty radius, or estimation noise would all look like “perpendicular energy” in the construction above. The five-step campaign is the attempt to pull those apart.</p>
+      </div>
+    </section>
+
+    <section id="why">
+      <h2>What the thickness is made of</h2>
+      <p class="ask">Five hypotheses, run on the same spine. The score at the end is mixed on purpose: the tube is not one thing.</p>
+
+      <h3>A fiber, mostly</h3>
+      <p>Stand at an anchor near 90° and step a unit vector. Read the frozen probe. If the tube is a fiber of the direction map, steps along the tube should barely change θ, and steps along the tangent should change it a lot.</p>
+      <div class="instrument">
+        <div id="fiber-bars"></div>
+        <p class="caption">Degrees of decoded angle per unit step. The tangent is about four times more sensitive than tube PC1. PC2 is almost flat. PC1 still leaks about 2° per unit, so the fiber is relative, not perfect.</p>
+      </div>
+
+      <h3>And a nuisance bundle, especially speed</h3>
+      <p>Cross-validated ridge regression. The spine’s features are \((\sin u, \cos u)\). The tube’s features are the first 10 residual principal components. This R² is not the 1024-dimensional probe R² from Part 1. A spine-only R² of 0.55 does not mean direction got worse. It means the scalar coordinate along the spline, by itself, is a weaker feature than the full residual.</p>
+      <div class="instrument" id="nuisance">
+        <svg class="chart" id="nuisance-svg" viewBox="0 0 520 280" role="img" aria-labelledby="nuis-title"></svg>
+        <p class="caption">Blue bars: the spine coordinate. Brown bars: ten tube components. The spine carries angle and fails at speed. The tube fails at angle (negative R²) and carries speed, start-\(y\), and motion type.</p>
+      </div>
+      <p>Regressing covariates out of the activations and refitting the circle: removing start position leaves 97% of the perpendicular energy. Removing speed leaves 72%. Removing both leaves 70%. Position is not the tube. Speed is a real piece of it, about 28% of the energy, and most of the thickness remains after speed is gone.</p>
+
+      <h3>Copies, but not the top variance axes</h3>
+      <p>Project the Part 1 nullspace probe planes into PCA and compare them to the tube basis. The first five probe planes sit mostly inside a 20-dimensional tube subspace (overlap about 0.71 to 0.89). Variance-ordered prefixes of that tube do not capture probe energy early: mean squared overlap of the first 20 probes is 0.003, 0.007, and 0.05 at k = 1, 2, 5, then 0.29 at k = 10 and 0.45 at k = 20.</p>
+      <p>This is why both edits worked in the tube experiment even though they are different slices. Residual-PCA k = 2 and nullspace-tube k = 1 both live in the tubular neighborhood. They are not the same coordinates. The directions that steer are not the directions of largest leftover variance. Largest variance, from the nuisance audit, is where speed sits. Steering-relevant coordinates and speed-relevant coordinates come apart. That split is the sharpest unused fact in the campaign.</p>
+
+      <h3>Not an uncertainty dial</h3>
+      <p>Tube radius \(\rho = \|r_{\perp}\|\) correlates −0.30 with probe confidence \(\|\widehat{\sin}, \widehat{\cos}\|\), +0.29 with angular error, −0.18 with belief entropy, and +0.41 with belief-mode error. Larger radius, slightly worse direction readout. The links are weak. The tube is not primarily a confidence knob, and it is not estimation fluff: it steers, it has stable energy, and it has the depth structure below.</p>
+
+      <h3>It gets thicker with depth</h3>
+      <p>The same spine-plus-tube construction at four layers, on train / velocity.</p>
+      <div class="instrument">
+        <div class="toolbar" id="depth-buttons" role="group" aria-label="Layer"></div>
+        <svg class="stage" id="depth-svg" viewBox="0 0 640 220" role="img" aria-labelledby="depth-title"></svg>
+        <p class="caption" id="depth-note"></p>
+      </div>
+      <table>
+        <thead>
+          <tr><th>Layer</th><th class="num">Perp. energy</th><th class="num">Tangent energy</th><th class="num">Tangent sensitivity</th><th class="num">Tube PC1 sensitivity</th><th class="num">Mean radius</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>0</td><td class="num">3.4</td><td class="num">0.05</td><td class="num">28.6</td><td class="num">15.1</td><td class="num">1.6</td></tr>
+          <tr><td>5, the working layer</td><td class="num">26.4</td><td class="num">0.03</td><td class="num">8.8</td><td class="num">2.2</td><td class="num">4.9</td></tr>
+          <tr><td>12</td><td class="num">49.5</td><td class="num">0.04</td><td class="num">4.3</td><td class="num">0.37</td><td class="num">6.8</td></tr>
+          <tr><td>23</td><td class="num">220.7</td><td class="num">0.27</td><td class="num">0.78</td><td class="num">0.17</td><td class="num">14.4</td></tr>
+        </tbody>
+      </table>
+      <p>After direction emerges, the representation does not collapse onto a wire. Perpendicular energy grows by almost two orders of magnitude from layer 0 to layer 23, while a unit step along the tangent moves the decoded angle less and less. More ways to realize the same θ, and a softer local geometry. That lines up with Part 1’s direction dimensionality growing toward later layers, and with the absent late-layer drop in R²: the linear probe can still read θ at layer 23 because the concept is still there, spread over a fatter fiber.</p>
+
+      <div class="panel" style="margin-top:16px">
+        <h3>Scorecard</h3>
+        <table>
+          <thead><tr><th>Hypothesis</th><th>Score</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Probe fiber. Many activations, one angle.</td><td>Strong, in relative terms</td><td>Tangent sensitivity dominates. The tube alone cannot predict θ.</td></tr>
+            <tr><td>Nuisance bundle. Other physics in the normal directions.</td><td>Strong for speed and motion type</td><td>Tube R² on speed is 0.70. Motion accuracy 0.78. Speed residualizing removes ~28% of the energy and leaves the rest.</td></tr>
+            <tr><td>Redundant copies of the Part 1 probes.</td><td>Partial</td><td>Probes live in the 20-D neighborhood. They are not the leading variance components.</td></tr>
+            <tr><td>Radius means uncertainty.</td><td>Weak</td><td>Correlations with confidence and entropy stay around 0.3.</td></tr>
+            <tr><td>Estimation noise.</td><td>Rejected</td><td>The tube steers, the energy is structured across depth, and it carries speed.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="hinge">
+        <h3>The sentence the campaign supports</h3>
+        <p>The concept is still a circle. Activations occupy a tubular neighborhood whose coordinates are roughly angle, then speed and motion type, then a residual fiber of copies. Multi-probe worked because it searched that neighborhood until the readout saturated, not because angle is 82 independent concepts. The spline walked the middle because order lives on the tangent. Pullback left the spline because probe loss can be improved in the fiber. Two well-chosen normals match a 20-probe edit because you can pin the spine and stop searching.</p>
+      </div>
+    </section>
+
+    <section id="decisions">
+      <h2>Choices that change the meaning of a result</h2>
+      <p class="ask">These are the decisions most likely to be invisible if you only look at the figures. Each one was a reason a later comparison is fair, or a reason it is not.</p>
+      <table>
+        <thead><tr><th>Choice</th><th>Why it was made</th><th>What would have gone wrong otherwise</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Sine and cosine, MSE, then atan2</td>
+            <td>Appendix C.11 and the dataset note. The circle has no cut.</td>
+            <td>Regressing the raw angle treats 1° and 359° as far apart. A good model of heading looks like a bad R².</td>
+          </tr>
+          <tr>
+            <td>Mean over all 2048 tokens</td>
+            <td>The paper’s stated primary probe. Last-tubelet pooling was a conditional ablation and the condition (direction already strong at layer 0) was false.</td>
+            <td>An independent reproduction only saw a layer-8 onset with last-tubelet pooling. Switching silently would have made \(L^\star\) incomparable with the plan.</td>
+          </tr>
+          <tr>
+            <td>\(L^\star\) from the velocity midpoint rule, not “use layer 8”</td>
+            <td>The dataset is not Kubric. The rule is the paper’s idea of emergence, applied locally.</td>
+            <td>Hard-coding 8 would have steered a layer past the jump, and would have hidden that this world is earlier.</td>
+          </tr>
+          <tr>
+            <td>C.11 stop thresholds, not the figure-caption cutoffs</td>
+            <td>The appendix is the method. The caption is a display.</td>
+            <td>Speed’s “5 dimensions” would have been a larger number. The direction-versus-scalar gap would still be there; the integer would not.</td>
+          </tr>
+          <tr>
+            <td>Swept hyperparameters for layer curves, fixed hyperparameters for nullspace and steering</td>
+            <td>That is the split between Appendix B and Appendix C.11. They were not mixed.</td>
+            <td>You cannot compare a nullspace R² to a layer-curve R² as if they were the same probe.</td>
+          </tr>
+          <tr>
+            <td>Evaluation probe fit on unsteered data only</td>
+            <td>The readout has to be a witness, not a participant in the edit.</td>
+            <td>A probe fit on steered vectors can agree with the intervention by construction.</td>
+          </tr>
+          <tr>
+            <td>Direction spline on velocity clips only</td>
+            <td>Match the Part 1 steering basis. Accelerating clips become a transfer test.</td>
+            <td>A mixed fit would confound “the circle of heading” with “the circle of heading-while-accelerating,” which the tube later shows is a different coordinate.</td>
+          </tr>
+          <tr>
+            <td>Chord drawn in the same 64-D PCA block</td>
+            <td>Isolate path shape.</td>
+            <td>Their language-model linear steer replaces the whole residual. Doing that here would mix “straight versus curved” with “edit 64 coordinates versus edit 1024.”</td>
+          </tr>
+          <tr>
+            <td>Shorter arc on the circle</td>
+            <td>A half turn is where a chord must cross the interior. A short arc across 0° is where a non-periodic spline would cheat by going the long way.</td>
+            <td>One path cannot show both the teleport and the boundary condition.</td>
+          </tr>
+          <tr>
+            <td>No predictor, no pixel edit, no new videos</td>
+            <td>The claim is about the pooled residual and a probe. Pixel-space steering is a different paper.</td>
+            <td>A generated frame that “looks faster” would be a new evaluation, not a stronger version of this one.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="numbers">
+      <h2>The same phrase, three different degrees</h2>
+      <p class="ask">If you line the writeups up, “final error of the direction spline” is 18.6° in one place and 19.8° in another, and the spline’s own final error inside the pullback run is 8.8°. Those are not three discoveries.</p>
+      <p>Each script fits its own evaluation probe on unsteered test activations and then freezes it. Part 1’s steering probe, Part 2’s spline probe, and the pullback/tube probe are different linear maps. They agree on orderings: chord teleports, spline walks, two tube directions beat a large multi-probe edit, pullback leaves the curve and improves the probe. They do not agree on the absolute degree, because a weaker probe starts farther from the truth and a stronger one is easier to satisfy.</p>
+      <p>A second trap: R² on the full 1024-dimensional residual (0.93 for velocity direction at layer 5, swept probe) is not R² of a ridge on the two numbers \((\sin u, \cos u)\) (0.55 in the nuisance audit). The first says the residual contains angle. The second says the spline coordinate, used as a tiny feature, is only part of how angle is read out. Tube-only R² going negative means those ten components are worse than predicting the mean, which is the fiber claim, not a broken probe.</p>
+      <p>A third: PCA keeping 98% of variance does not mean the manifold is 64-dimensional. Sixty-four was a budget copied from the Goodfire appendix so the spline would have room. Speed’s Part 1 nullspace says the linearly readable part is about five dimensions. The other components are there; the probe does not need them to walk speed in a straight line.</p>
+    </section>
+
+    <section id="next">
+      <h2>What the results leave open</h2>
+      <p class="ask">Each of these is a fork the existing numbers do not settle. The useful next experiment is the one that would come out differently under two stories you cannot yet tell apart.</p>
+
+      <div class="next-item">
+        <h3>Are the steering normals and the speed normals the same directions?</h3>
+        <p>The tube-why campaign says no, indirectly: leading residual PCs predict speed and do not predict angle, while nullspace probes steer angle and are not aligned with those leading PCs. k = 1 of the nullspace tube already hits 2.6°, and k = 1 of variance PCA does nothing (19.7°). That is suggestive and it is not a direct measurement. Take the tube basis ordered by variance, and the tube basis ordered by overlap with the Part 1 probes. For each, regress speed, and steer the endpoint. If the speed axis and the steering axis are orthogonal, factored control is available: you can change heading without changing decoded speed. If they are the same axis, every precise angle edit is also a speed edit, and the right object is a cylinder in \((\theta, \text{speed})\), which is the thin-plate / 2D manifold the Goodfire paper already knows how to fit and this project deliberately skipped.</p>
+      </div>
+      <div class="next-item">
+        <h3>After you remove speed, does the endpoint still need the tube?</h3>
+        <p>Residualizing speed removed 28% of perpendicular energy and left 72%. Steer the spine-plus-tube recipe on those residualized activations. If k = 0 then matches the old k = 2 result, the endpoint gap was the speed entanglement and the “copies” story was overstated. If you still need about two normals, those normals are a real fiber of angle, and speed was a passenger. Both outcomes are compatible with everything measured so far.</p>
+      </div>
+      <div class="next-item">
+        <h3>Is the late network a fatter copy of layer 5, or a different entanglement?</h3>
+        <p>From layer 5 to 23, perpendicular energy goes from 26 to 221 and tangent sensitivity falls from 8.8° to 0.8° per unit step, while linear R² stays high. Repeat the k = 2 steer at layers 12 and 23. If two normals still match a large multi-probe edit, depth only adds redundant fiber and layer 5 remains the right control point. If the k you need grows with depth, later layers mix in factors the layer-5 tube does not contain, and the missing late-layer softening in Part 1 was pooling over a reorganization rather than an absence of one.</p>
+      </div>
+      <div class="next-item">
+        <h3>Constrain pullback to the tube, and see if it still wants to leave</h3>
+        <p>Unconstrained pullback walked away from the spline and got to about 1° of probe error. That might be the tube, or it might be some third region of activation space. Re-run L-BFGS with the path restricted to the spine plus k normals, for k = 2 and k = 10. If k = 2 already matches unconstrained pullback, the off-manifold optimum was the tube you can name. If the unconstrained path still wins by a lot, there is geometry neither the spline nor the residual PCA has captured.</p>
+      </div>
+      <div class="next-item">
+        <h3>One circle, or two, for the two motion types?</h3>
+        <p>The velocity-fit spline transfers to accelerating test clips (final error 18.4° versus 18.6° on the mixed test set, in the spline script). Motion type is also classified at 0.78 accuracy from the tube. Those can both be true if accelerating clips sit on a parallel circle — same angles, shifted in the normal bundle — or on the same circle with a label the probe ignores. Fit two periodic splines, one per motion type, and measure the distance between them along the tube. A constant offset that lines up with tube PC-speed means direction-and-motion is a cylinder. Overlapping splines mean motion type is written somewhere the angle curve does not see.</p>
+      </div>
+      <div class="next-item">
+        <h3>Is the scalar endpoint miss the probe, or the geometry?</h3>
+        <p>Speed’s path reaches the centroid and the global probe reads 2.86 instead of 3.52. Acceleration’s Part 2 probe is weak (R² 0.33) under the fixed C.11 recipe, while the swept Part 1 probe at the same layer was 0.92 on val. Before inventing a curved model for either scalar, swap in the swept probe and, separately, score Goodfire’s belief: softmax over squared distance to centroids, temperature 0.5. If belief tracks the ramp and the linear probe does not, the failure is the readout. If both miss, the centroid really is not the magnitude you think it is.</p>
+      </div>
+      <div class="next-item">
+        <h3>The isometry test was never run</h3>
+        <p>Goodfire’s first check, before pullback, is whether arc length along the activation spline matches arc length along the behavior curve. Chord length should match much less, and on a folded loop it can collapse. Here behavior can be the probe angle, or the belief over the 64 bins. Correlate those arc lengths on the direction spline. A high correlation says the circle is not just a convenient interpolant but a shared geometry in their sense. A low one, despite the clean mid-path walk, says the probe is locally readable without the manifold being isometric — a weaker claim than the paper’s, and worth knowing before you cite them.</p>
+      </div>
+      <div class="next-item">
+        <h3>What this dataset cannot answer</h3>
+        <p>One blue disk, no occlusion, no texture, no contact. Joseph et al. also run patch-level probes, attentive pooling, and IntPhys-style violation tests. None of that was in scope, and a flat disk will not grow those results by being reread. The emergence layer moved from 8 to 5 relative to their Kubric balls; whether that move is “simpler pixels” or “64 angles instead of 8” is not identified. A follow-up that changes the stimulus is a new project. A follow-up that separates speed from the steering fiber, on these same activations, is the one the current evidence is already pointing at.</p>
+      </div>
+    </section>
+
+    <section id="glossary">
+      <h2>Glossary</h2>
+      <div class="glossary">
+        <input id="gloss-q" type="search" placeholder="Filter terms" aria-label="Filter glossary">
+        <div id="gloss"></div>
+      </div>
+    </section>
+
+    <footer>
+      <p>Numbers are the held-out results in <a href="PART1_WRITEUP.md">PART1_WRITEUP.md</a>, <a href="PART2_WRITEUP.md">PART2_WRITEUP.md</a>, <a href="PART2_PULLBACK_TUBE_WRITEUP.md">PART2_PULLBACK_TUBE_WRITEUP.md</a>, and <a href="PART2_TUBE_WHY_WRITEUP.md">PART2_TUBE_WHY_WRITEUP.md</a>, rounded from the JSON under <code>artifacts/results/</code>. Method lockfiles: <a href="PART1_PLAN.md">PART1_PLAN.md</a>, <a href="PART2_PLAN.md">PART2_PLAN.md</a>, <a href="PART2_TUBE_PLAN.md">PART2_TUBE_PLAN.md</a>. Papers: Joseph et al., arXiv:2602.07050; Wurgaft et al., arXiv:2605.05115. Working sketches of each paper’s method, written before these results: <a href="explainer.html">explainer.html</a> and <a href="manifold_explainer.html">manifold_explainer.html</a>.</p>
+    </footer>
+  </main>
+</div>
+<script>
+const LAYERS = {
+  direction: [0.227,0.563,0.559,0.448,0.590,0.928,0.897,0.897,0.956,0.954,0.947,0.959,0.960,0.951,0.967,0.950,0.949,0.941,0.966,0.964,0.963,0.965,0.966,0.970],
+  speed: [0.800,0.829,0.836,0.846,0.838,0.949,0.937,0.947,0.960,0.943,0.935,0.934,0.937,0.937,0.956,0.951,0.947,0.939,0.948,0.958,0.951,0.965,0.961,0.957],
+  accel: [0.785,0.831,0.833,0.825,0.824,0.924,0.903,0.919,0.943,0.933,0.875,0.903,0.916,0.920,0.934,0.929,0.944,0.919,0.932,0.932,0.925,0.935,0.945,0.935]
+};
+const NULLS = {
+  direction: { name: "Direction, velocity", r2: [0.746,0.891,0.735,0.752,0.654,0.404,0.476,0.488,0.376,0.420,0.282,0.509,0.515,0.236,0.358,0.528,0.264,0.417,0.312,0.436,0.423,0.229,0.164,0.189,0.566,0.232,0.126,0.297,0.247,0.181,0.183,0.206,0.200,0.399,0.141,0.309,0.272,0.114,0.119,0.360,0.213,0.065], unit: "R²", note: "41 probes kept (82 dimensions). The last point is the probe that crossed R² < 0.1 and was not kept. Jagged recoveries are the sawtooth." },
+  speed: { name: "Speed", r2: [0.882,0.408,0.773,0.536,0.544,0.131], unit: "R²", note: "Five probes kept. The last point is the stopped probe: MAE had crossed 0.9× the mean baseline while R² was still 0.13. The bounce at iteration 2 is a second copy, not a sine/cosine pair." },
+  accel: { name: "Acceleration", r2: [0.524,0.436,0.037], unit: "R²", note: "Two probes kept. The third point is the stop, R² 0.037." }
+};
+const STEER = [0,1,2,5,10,15,20,41].map((n,i) => ({
+  n,
+  all: [[90.3,19.2],[58.4,38.1],[29.3,65.9],[11.4,82.3],[10.8,85.1],[12.8,87.6],[6.3,88.9],[4.4,88.6]][i],
+  velocity: [[91.4,16.6],[61.1,36.3],[30.1,65.3],[12.3,81.7],[11.7,84.4],[14.1,87.0],[7.2,88.5],[5.0,88.4]][i],
+  acceleration: [[89.2,21.8],[55.6,39.9],[28.6,66.6],[10.6,83.0],[9.8,85.8],[11.5,88.1],[5.5,89.2],[3.7,88.9]][i]
+}));
+const TUBE = [
+  { id: "k0", label: "Spline only", mid: 12.5, fin: 19.8, k: 0 },
+  { id: "k1", label: "Variance PC, k=1", mid: 11.7, fin: 19.7, k: 1 },
+  { id: "k2", label: "Variance PC, k=2", mid: 4.2, fin: 2.8, k: 2 },
+  { id: "ns", label: "Nullspace, k=1", mid: 4.9, fin: 2.6, k: 1 },
+  { id: "n20", label: "Multi-probe n=20", mid: null, fin: 3.5, k: 0 }
+];
+const DEPTH = [
+  { layer: 0, perp: 3.4, tang: 0.05, sensT: 28.6, sensN: 15.1, rho: 1.6 },
+  { layer: 5, perp: 26.4, tang: 0.03, sensT: 8.8, sensN: 2.2, rho: 4.9 },
+  { layer: 12, perp: 49.5, tang: 0.04, sensT: 4.3, sensN: 0.37, rho: 6.8 },
+  { layer: 23, perp: 220.7, tang: 0.27, sensT: 0.78, sensN: 0.17, rho: 14.4 }
+];
+const NUIS = [
+  { name: "Direction", spine: 0.55, tube: -0.54 },
+  { name: "Speed", spine: -0.01, tube: 0.70 },
+  { name: "Acceleration", spine: -0.01, tube: 0.24 },
+  { name: "Start position", spine: -0.01, tube: 0.24 },
+  { name: "Start y", spine: 0.00, tube: 0.49 },
+  { name: "Motion type", spine: 0.52, tube: 0.78, acc: true }
+];
+const GLOSS = [
+  ["Residual stream", "The activation vector after a transformer block, before you pool it. Here, 2048 tokens of dimension 1024. Everything downstream is a summary or a linear function of that vector."],
+  ["Mean-pool", "Average the 2048 tokens into one 1024-vector. The probe input for every experiment in this project."],
+  ["Tubelet", "V-JEPA groups frames in pairs before patching. Sixteen frames become eight temporal steps. Not the same word as the geometric tube around the spline."],
+  ["Probe", "A linear map Wh + b from the pooled residual to a label. Direction outputs two numbers, sine and cosine. Scalars output one."],
+  ["R²", "Fraction of label variance a predictor captures. One is perfect, zero matches predicting the mean, negative is worse than the mean."],
+  ["Circular MAE", "Average absolute angular error, wrapped so that 359° versus 1° counts as 2°, not 358°. Chance on a uniform circle is 90°."],
+  ["Physics Emergence Zone", "Joseph et al.’s name for the depth where direction becomes linearly readable, about a third of the way through V-JEPA 2-L on their data (layer 8). On these disks the same rule lands at layer 5."],
+  ["L*", "The working layer for every causal edit. Chosen on validation from the velocity-direction curve by the midpoint rule. Here, layer 5."],
+  ["Nullspace iteration", "Fit a probe, project its weight’s row space out of the activations, fit again. The number of iterations before the label dies is a dimensionality estimate."],
+  ["Sawtooth", "Direction’s nullspace curve dropping and partially recovering, read as paired sine and cosine copies. On this run the jag is real and irregular."],
+  ["Subspace steering", "Replace the coordinates of an activation inside the span of several probe weights so those probes all output a target, and leave the orthogonal complement alone."],
+  ["Evaluation probe", "A linear readout fit only on unsteered activations, then frozen and used to score edits. It is the witness. It is not one of the steering probes."],
+  ["Centroid", "Mean activation of every training clip with one exact label value."],
+  ["Intrinsic coordinate", "The parameter the spline is drawn against. Magnitude, scaled to [0, 1], for the scalars. Angle over 360° for direction."],
+  ["Natural cubic spline", "A cubic interpolant through ordered points with zero second derivative at the ends. Used for speed and acceleration."],
+  ["Periodic cubic spline", "The same interpolant with the ends identified, so value and slope match. Used for direction, because 0° and 360° are the same heading."],
+  ["Chord", "Straight interpolation between two centroids in PCA space. The linear-steering control."],
+  ["Mh", "The activation manifold: the spline, viewed as a set of points. Pullback’s question is whether an optimized path lands on it."],
+  ["Pullback", "Optimize an activation path so a readout tracks a desired trajectory, then look at where the path sits relative to the spline. L-BFGS on the path."],
+  ["Leftover coordinates", "The part of the activation outside the 64 PCA components. Steering keeps each test clip’s leftover and only replaces the PCA block."],
+  ["Tangent", "The derivative of the spline, the direction of increasing angle or magnitude."],
+  ["Normal bundle / tube", "Directions perpendicular to the tangent, fit by PCA on residuals after the tangent is removed. The thickness around the spine."],
+  ["Fiber", "The set of activations that a readout treats as the same label. A thick fiber means many vectors decode as one angle."],
+  ["Nuisance", "A variable you did not mean to store in a representation of something else. Here, speed living in the normal bundle of direction."],
+  ["Belief", "Goodfire’s manufactured distribution when there is no vocabulary: softmax of negative squared distance to centroids, temperature 0.5. Used in the circle widget as a picture. The reported errors are from linear probes."],
+  ["GroupKFold", "Cross-validation that keeps clips with the same quantized start position in the same fold, so the probe cannot use location as a cheat code for angle."]
+];
+
+function svgEl(name, attrs) {
+  const n = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  return n;
+}
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+function poly(pts) { return pts.map(p => p.map(x => x.toFixed(1)).join(",")).join(" "); }
+
+function drawLayers(ell) {
+  const svg = document.getElementById("layer-svg");
+  clear(svg);
+  svg.appendChild(svgEl("title", { id: "layer-title" })).textContent = "Validation R squared versus layer";
+  const X0 = 42, X1 = 500, Y0 = 28, Y1 = 210;
+  const x = i => X0 + (i / 23) * (X1 - X0);
+  const y = r => Y1 - r * (Y1 - Y0);
+  const band0 = x(7), band1 = x(9);
+  svg.appendChild(svgEl("rect", { x: band0, y: Y0, width: band1 - band0, height: Y1 - Y0, fill: "#d89a1a", opacity: "0.28" }));
+  svg.appendChild(svgEl("line", { x1: X0, y1: Y1, x2: X1, y2: Y1, stroke: "#c3cfd4" }));
+  svg.appendChild(svgEl("line", { x1: X0, y1: Y0, x2: X0, y2: Y1, stroke: "#c3cfd4" }));
+  const series = [["speed", "#0f766e"], ["accel", "#9f1239"], ["direction", "#1d4ed8"]];
+  for (const [key, color] of series) {
+    const pts = LAYERS[key].map((r, i) => [x(i), y(r)]);
+    svg.appendChild(svgEl("polyline", { points: poly(pts), fill: "none", stroke: color, "stroke-width": key === "direction" ? "2.6" : "2.2" }));
+  }
+  svg.appendChild(svgEl("line", { x1: x(ell), y1: Y0, x2: x(ell), y2: Y1, stroke: "#142028", "stroke-width": "1.2" }));
+  const label = (txt, px, py, anchor) => {
+    const t = svgEl("text", { x: px, y: py, "font-family": "Sora, sans-serif", "font-size": "11", fill: "#3a4c54", "text-anchor": anchor || "start" });
+    t.textContent = txt;
+    svg.appendChild(t);
+  };
+  label("R² 1", 6, Y0 + 8);
+  label("0", 8, Y1);
+  label("layer 0", X0, 232);
+  label("23", X1, 232, "end");
+  label("paper zone", (band0 + band1) / 2, 22, "middle");
+  const box = document.getElementById("layer-readout");
+  const rows = [
+    ["Direction", LAYERS.direction[ell], "#1d4ed8"],
+    ["Speed", LAYERS.speed[ell], "#0f766e"],
+    ["Acceleration", LAYERS.accel[ell], "#9f1239"]
+  ];
+  box.innerHTML = rows.map(([name, r, c]) => `<p class="metric"><strong style="color:${c}">${r.toFixed(2)}</strong><span>${name}</span></p>`).join("");
+}
+
+function drawNull(which, k) {
+  const spec = NULLS[which];
+  const svg = document.getElementById("null-svg");
+  clear(svg);
+  svg.appendChild(svgEl("title", { id: "null-title" })).textContent = spec.name + " validation R squared across nullspace iterations";
+  const n = spec.r2.length;
+  const X0 = 42, X1 = 500, Y0 = 24, Y1 = 200;
+  const x = i => X0 + (n === 1 ? 0 : i / (n - 1)) * (X1 - X0);
+  const y = r => Y1 - Math.max(0, r) * (Y1 - Y0);
+  svg.appendChild(svgEl("line", { x1: X0, y1: Y1, x2: X1, y2: Y1, stroke: "#c3cfd4" }));
+  svg.appendChild(svgEl("line", { x1: X0, y1: y(0.1), x2: X1, y2: y(0.1), stroke: "#d89a1a", "stroke-dasharray": "4 3" }));
+  const pts = spec.r2.map((r, i) => [x(i), y(Math.max(0, r))]);
+  const color = which === "direction" ? "#1d4ed8" : which === "speed" ? "#0f766e" : "#9f1239";
+  svg.appendChild(svgEl("polyline", { points: poly(pts), fill: "none", stroke: color, "stroke-width": "2.4" }));
+  spec.r2.forEach((r, i) => {
+    svg.appendChild(svgEl("circle", { cx: x(i), cy: y(Math.max(0, r)), r: i === k ? 5 : 3, fill: i === n - 1 ? "#fff" : color, stroke: color, "stroke-width": "1.5" }));
+  });
+  const t = svgEl("text", { x: X0, y: 228, "font-family": "Sora, sans-serif", "font-size": "11", fill: "#3a4c54" });
+  t.textContent = "open circle is the stopped probe, not kept";
+  svg.appendChild(t);
+  const gold = svgEl("text", { x: X1, y: y(0.1) - 4, "text-anchor": "end", "font-family": "Sora, sans-serif", "font-size": "11", fill: "#8a5a12" });
+  gold.textContent = "R² = 0.1 stop";
+  svg.appendChild(gold);
+  document.getElementById("null-metric").innerHTML = `<strong>${spec.r2[k].toFixed(2)}</strong> <span class="mute">val R² at iteration ${k}. ${k === n - 1 ? "This probe is the one that stopped the run." : "Kept."}</span>`;
+  document.getElementById("null-caption").textContent = spec.note;
+}
+
+let steerSubset = "all";
+function drawSteer(idx) {
+  const row = STEER[idx];
+  const pair = row[steerSubset];
+  document.getElementById("steer-n-read").textContent = "n = " + row.n;
+  document.getElementById("mae-tgt").textContent = pair[0].toFixed(1) + "°";
+  document.getElementById("mae-tru").textContent = pair[1].toFixed(1) + "°";
+  document.getElementById("steer-sub").textContent = steerSubset === "all" ? "all test" : steerSubset;
+  document.getElementById("steer-sub-note").textContent = steerSubset === "all" ? "256 test clips" : "128 test clips";
+  const ang = (90 - pair[0]) * Math.PI / 180;
+  const arm = document.getElementById("arm-read");
+  arm.setAttribute("x2", (100 + 78 * Math.cos(ang)).toFixed(1));
+  arm.setAttribute("y2", (100 - 78 * Math.sin(ang)).toFixed(1));
+}
+
+let arcMode = "half";
+let arcRead = "spline";
+function arcPoint(u) {
+  const a = -Math.PI / 2 + u * Math.PI * 2;
+  return [180 + 110 * Math.cos(a), 160 + 110 * Math.sin(a)];
+}
+function drawArc(t) {
+  const svg = document.getElementById("circle-svg");
+  clear(svg);
+  svg.appendChild(svgEl("title", { id: "circle-title" })).textContent = "Periodic spline and chord on a circle of headings";
+  const bins = 8;
+  const pts = [];
+  for (let i = 0; i <= 64; i++) pts.push(arcPoint(i / 64));
+  svg.appendChild(svgEl("polyline", { points: poly(pts), fill: "none", stroke: "#1d4ed8", "stroke-width": "2.4" }));
+  for (let i = 0; i < bins; i++) {
+    const [cx, cy] = arcPoint(i / bins);
+    svg.appendChild(svgEl("circle", { cx, cy, r: 4, fill: "#142028" }));
+  }
+  const ends = arcMode === "half" ? [0, 0.5] : [22.5 / 360, 337.5 / 360];
+  let du = ends[1] - ends[0];
+  if (arcMode === "short") du = ((ends[1] - ends[0] + 1.5) % 1) - 0.5;
+  const u = (ends[0] + du * t + 1) % 1;
+  const [sx, sy] = arcPoint(u);
+  const [ax, ay] = arcPoint(ends[0]);
+  const [bx, by] = arcPoint((ends[0] + du + 1) % 1);
+  svg.appendChild(svgEl("line", { x1: ax, y1: ay, x2: bx, y2: by, stroke: "#9f1239", "stroke-width": "2", "stroke-dasharray": "5 4" }));
+  const [lx, ly] = [ax + (bx - ax) * t, ay + (by - ay) * t];
+  svg.appendChild(svgEl("circle", { cx: sx, cy: sy, r: 6.5, fill: "#1d4ed8", stroke: "#fff", "stroke-width": "1.5" }));
+  svg.appendChild(svgEl("circle", { cx: lx, cy: ly, r: 6.5, fill: "#9f1239", stroke: "#fff", "stroke-width": "1.5" }));
+  const walker = arcRead === "spline" ? [sx, sy] : [lx, ly];
+  const dists = [];
+  for (let i = 0; i < bins; i++) {
+    const [cx, cy] = arcPoint(i / bins);
+    const d2 = (walker[0] - cx) ** 2 + (walker[1] - cy) ** 2;
+    dists.push(Math.exp(-d2 / (2 * 38 * 38)));
+  }
+  const z = dists.reduce((a, b) => a + b, 0);
+  const box = document.getElementById("bars");
+  const labels = ["0°", "45°", "90°", "135°", "180°", "225°", "270°", "315°"];
+  box.innerHTML = dists.map((d, i) => {
+    const p = d / z;
+    return `<div class="bar-row"><span>${labels[i]}</span><div class="bar-track"><div class="bar-fill${arcRead === "chord" ? " alt" : ""}" style="width:${(100 * p).toFixed(1)}%"></div></div><span>${(100 * p).toFixed(0)}%</span></div>`;
+  }).join("");
+  const claimed = ((ends[0] + du * t + 1) % 1) * 360;
+  document.getElementById("belief-note").textContent = arcRead === "spline"
+    ? `Spline walker at about ${claimed.toFixed(0)}°. Mass sits on the neighboring bins, and the linear probe stays with it.`
+    : (arcMode === "half"
+      ? "Chord walker. At the middle of a diameter every bin is about equally far, so the bars flatten. The linear probe does not flatten: it jumps, 171° off the claimed angle."
+      : "Chord walker on the short arc. It never leaves the neighborhood of the circle, which is why this path does not teleport.");
+  document.getElementById("arc-caption").textContent = arcMode === "half"
+    ? "Half turn, the path where the chord must cross the interior. Probe mid-path error was 5.5° on the spline and 170.9° on the chord."
+    : "Short arc across 0°. Both paths stay near the circle. Probe final error was 1.3° for each, and 8.4° for 20 multi-probe directions.";
+}
+
+function drawTube(id) {
+  const spec = TUBE.find(t => t.id === id);
+  const svg = document.getElementById("tube-svg");
+  clear(svg);
+  svg.appendChild(svgEl("title", { id: "tube-title" })).textContent = "Spine plus a selectable number of normal directions";
+  svg.appendChild(svgEl("circle", { cx: 130, cy: 140, r: 70, fill: "#d89a1a", opacity: "0.25" }));
+  svg.appendChild(svgEl("circle", { cx: 130, cy: 140, r: 54, fill: "none", stroke: "#1d4ed8", "stroke-width": "2.6" }));
+  const normals = spec.id === "n20" ? 0 : spec.k;
+  const vecs = [[46, -28], [-30, -36], [18, 48]];
+  for (let i = 0; i < normals; i++) {
+    svg.appendChild(svgEl("line", { x1: 130, y1: 140, x2: 130 + vecs[i][0], y2: 140 + vecs[i][1], stroke: "#8a5a12", "stroke-width": "2.4" }));
+  }
+  const label = svgEl("text", { x: 230, y: 90, "font-family": "Sora, sans-serif", "font-size": "14", fill: "#142028" });
+  label.textContent = spec.label;
+  svg.appendChild(label);
+  const a = svgEl("text", { x: 230, y: 120, "font-family": "Literata, serif", "font-size": "15", fill: "#142028" });
+  a.textContent = spec.mid == null ? "No mid-path walk" : `Mid-path  ${spec.mid.toFixed(1)}°`;
+  svg.appendChild(a);
+  const b = svgEl("text", { x: 230, y: 146, "font-family": "Literata, serif", "font-size": "15", fill: "#142028" });
+  b.textContent = `Final  ${spec.fin.toFixed(1)}°`;
+  svg.appendChild(b);
+  document.getElementById("tube-readout").innerHTML =
+    `<p class="metric"><strong>${spec.mid == null ? "—" : spec.mid.toFixed(1) + "°"}</strong><span>mid-path to claimed</span></p>` +
+    `<p class="metric"><strong>${spec.fin.toFixed(1)}°</strong><span>final to target</span></p>` +
+    `<p class="metric"><strong>${spec.id === "n20" ? "82-D search" : spec.k + " normal" + (spec.k === 1 ? "" : "s")}</strong><span>what gets edited</span></p>`;
+}
+
+function drawNuisance() {
+  const svg = document.getElementById("nuisance-svg");
+  clear(svg);
+  svg.appendChild(svgEl("title", { id: "nuis-title" })).textContent = "Spine versus tube regression scores";
+  const X0 = 120, X1 = 490, mid = 250;
+  const y0 = 36, row = 38;
+  const scale = v => mid + v * 160;
+  svg.appendChild(svgEl("line", { x1: mid, y1: 16, x2: mid, y2: 262, stroke: "#c3cfd4" }));
+  NUIS.forEach((rowData, i) => {
+    const y = y0 + i * row;
+    const name = svgEl("text", { x: 8, y: y + 4, "font-family": "Sora, sans-serif", "font-size": "12", fill: "#142028" });
+    name.textContent = rowData.name;
+    svg.appendChild(name);
+    const s = Math.max(-0.6, rowData.spine);
+    const t = Math.max(-0.6, rowData.tube);
+    svg.appendChild(svgEl("rect", { x: Math.min(mid, scale(s)), y: y - 10, width: Math.abs(scale(s) - mid), height: 8, fill: "#1d4ed8" }));
+    svg.appendChild(svgEl("rect", { x: Math.min(mid, scale(t)), y: y, width: Math.abs(scale(t) - mid), height: 8, fill: "#8a5a12" }));
+  });
+  const cap = (txt, x, y) => {
+    const el = svgEl("text", { x, y, "font-family": "Sora, sans-serif", "font-size": "11", fill: "#3a4c54" });
+    el.textContent = txt;
+    svg.appendChild(el);
+  };
+  cap("−0.5", scale(-0.5) - 10, 274);
+  cap("0", mid - 4, 274);
+  cap("0.5", scale(0.5) - 8, 274);
+  cap("1", scale(1) - 4, 274);
+}
+
+let depthIdx = 1;
+function drawDepth() {
+  const svg = document.getElementById("depth-svg");
+  clear(svg);
+  svg.appendChild(svgEl("title", { id: "depth-title" })).textContent = "Tube radius at four layers";
+  DEPTH.forEach((d, i) => {
+    const cx = 80 + i * 150;
+    const rad = 8 + d.rho * 3.1;
+    svg.appendChild(svgEl("circle", { cx, cy: 110, r: rad, fill: i === depthIdx ? "#d89a1a" : "#e7d7b0", opacity: "0.9" }));
+    svg.appendChild(svgEl("circle", { cx, cy: 110, r: 4, fill: "none", stroke: "#1d4ed8", "stroke-width": "2" }));
+    const lab = svgEl("text", { x: cx, y: 196, "text-anchor": "middle", "font-family": "Sora, sans-serif", "font-size": "13", fill: i === depthIdx ? "#142028" : "#3a4c54" });
+    lab.textContent = "layer " + d.layer;
+    svg.appendChild(lab);
+  });
+  const d = DEPTH[depthIdx];
+  document.getElementById("depth-note").textContent =
+    `Layer ${d.layer}: perpendicular energy ${d.perp}, tangent energy ${d.tang}, tangent sensitivity ${d.sensT}° per unit, tube PC1 sensitivity ${d.sensN}°, mean radius ${d.rho}.`;
+}
+
+function fiberBars() {
+  const rows = [["Spine tangent", 8.82, "#1d4ed8"], ["Tube PC1", 2.16, "#8a5a12"], ["Tube PC2", 0.14, "#8a5a12"], ["Tube PC3", 0.65, "#8a5a12"]];
+  document.getElementById("fiber-bars").innerHTML = rows.map(([name, v, color]) =>
+    `<div class="bar-row"><span>${name}</span><div class="bar-track"><div class="bar-fill" style="width:${(100 * v / 8.82).toFixed(1)}%;background:${color}"></div></div><span>${v.toFixed(2)}°</span></div>`
+  ).join("");
+}
+
+function glossary() {
+  const q = document.getElementById("gloss-q").value.trim().toLowerCase();
+  const box = document.getElementById("gloss");
+  box.innerHTML = GLOSS.filter(([t, d]) => !q || t.toLowerCase().includes(q) || d.toLowerCase().includes(q))
+    .map(([t, d]) => `<details class="term"><summary>${t}</summary><p>${d}</p></details>`).join("");
+}
+
+const stim = { mode: "direction", knob: 0.18, pos: 0.35, vel: 1.4 };
+function stimNote() {
+  const notes = {
+    direction: "Direction clips change heading. In the dataset, half of them hold a constant velocity and half accelerate. The spline was fit on the constant-velocity half.",
+    speed: "Speed clips are constant velocity. Magnitude runs from 0.25 to 4.0 m/s across 64 bins. Heading also varies, and is not the probe target.",
+    accel: "Acceleration clips start from rest and speed up. Magnitude runs from 0.25 to 10 m/s². The initial speed in the metadata is 0."
+  };
+  document.getElementById("stim-note").textContent = notes[stim.mode];
+  const label = document.getElementById("stim-label");
+  label.firstChild.textContent = stim.mode === "direction" ? "Angle" : stim.mode === "speed" ? "Speed" : "Acceleration";
+}
+function drawDisk(ts) {
+  const c = document.getElementById("disk");
+  const g = c.getContext("2d");
+  const w = c.width, h = c.height;
+  g.fillStyle = "#101418";
+  g.fillRect(0, 0, w, h);
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduce) {
+    if (stim.mode === "accel") stim.vel = Math.min(4.2, stim.vel + 0.012 + stim.knob * 0.02);
+    stim.pos += stim.vel * 0.008;
+    if (stim.pos > 1.15) { stim.pos = -0.15; if (stim.mode === "accel") stim.vel = 0.15; }
+  }
+  const ang = stim.mode === "direction" ? stim.knob * Math.PI * 2 : -0.4;
+  const cx = w * (0.5 + (stim.pos - 0.5) * Math.cos(ang) * 0.7);
+  const cy = h * (0.55 + (stim.pos - 0.5) * Math.sin(ang) * 0.7);
+  g.fillStyle = "#2f6fed";
+  g.beginPath();
+  g.arc(cx, cy, 18, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "#f7fafa";
+  g.lineWidth = 2;
+  g.beginPath();
+  g.moveTo(cx, cy);
+  g.lineTo(cx + Math.cos(ang) * (16 + stim.vel * 10), cy + Math.sin(ang) * (16 + stim.vel * 10));
+  g.stroke();
+  if (!reduce) requestAnimationFrame(drawDisk);
+}
+function setStimKnob(v) {
+  stim.knob = v;
+  const read = document.getElementById("stim-read");
+  if (stim.mode === "direction") {
+    read.textContent = Math.round(v * 360) + "°";
+  } else if (stim.mode === "speed") {
+    stim.vel = 0.4 + v * 3.2;
+    read.textContent = (0.25 + v * 3.75).toFixed(2) + " m/s";
+  } else {
+    read.textContent = (0.25 + v * 9.75).toFixed(2) + " m/s²";
+  }
+}
+
+function boot() {
+  if (window.renderMathInElement) {
+    renderMathInElement(document.body, {
+      delimiters: [{ left: "\\[", right: "\\]", display: true }, { left: "\\(", right: "\\)", display: false }],
+      throwOnError: false
+    });
+  }
+  const layer = document.getElementById("layer");
+  const syncLayer = () => { document.getElementById("layer-read").textContent = layer.value; drawLayers(+layer.value); };
+  layer.addEventListener("input", syncLayer); syncLayer();
+
+  const nullK = document.getElementById("null-k");
+  let nullWhich = "direction";
+  const syncNull = () => {
+    const max = NULLS[nullWhich].r2.length - 1;
+    if (+nullK.value > max) nullK.value = max;
+    nullK.max = max;
+    document.getElementById("null-k-read").textContent = nullK.value;
+    drawNull(nullWhich, +nullK.value);
+  };
+  nullK.addEventListener("input", syncNull);
+  document.querySelectorAll("[data-null]").forEach(btn => btn.addEventListener("click", () => {
+    nullWhich = btn.dataset.null;
+    document.querySelectorAll("[data-null]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+    syncNull();
+  }));
+  syncNull();
+
+  const steer = document.getElementById("steer-n");
+  steer.addEventListener("input", () => drawSteer(+steer.value));
+  document.querySelectorAll("[data-sub]").forEach(btn => btn.addEventListener("click", () => {
+    steerSubset = btn.dataset.sub;
+    document.querySelectorAll("[data-sub]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+    drawSteer(+steer.value);
+  }));
+  drawSteer(0);
+
+  const arcT = document.getElementById("arc-t");
+  const syncArc = () => {
+    const t = +arcT.value / 1000;
+    document.getElementById("arc-t-read").textContent = t.toFixed(2);
+    drawArc(t);
+  };
+  arcT.addEventListener("input", syncArc);
+  document.querySelectorAll("[data-arc]").forEach(btn => btn.addEventListener("click", () => {
+    arcMode = btn.dataset.arc;
+    document.querySelectorAll("[data-arc]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+    syncArc();
+  }));
+  document.getElementById("read-spline").addEventListener("click", () => { arcRead = "spline"; document.getElementById("read-spline").setAttribute("aria-pressed", "true"); document.getElementById("read-chord").setAttribute("aria-pressed", "false"); syncArc(); });
+  document.getElementById("read-chord").addEventListener("click", () => { arcRead = "chord"; document.getElementById("read-chord").setAttribute("aria-pressed", "true"); document.getElementById("read-spline").setAttribute("aria-pressed", "false"); syncArc(); });
+  syncArc();
+
+  const ks = document.getElementById("tube-ks");
+  TUBE.forEach((spec, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = spec.label;
+    b.setAttribute("aria-pressed", i === 2 ? "true" : "false");
+    b.addEventListener("click", () => {
+      [...ks.children].forEach(c => c.setAttribute("aria-pressed", "false"));
+      b.setAttribute("aria-pressed", "true");
+      drawTube(spec.id);
+    });
+    ks.appendChild(b);
+  });
+  drawTube("k2");
+
+  const db = document.getElementById("depth-buttons");
+  DEPTH.forEach((d, i) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.textContent = "Layer " + d.layer;
+    b.setAttribute("aria-pressed", i === 1 ? "true" : "false");
+    b.addEventListener("click", () => {
+      depthIdx = i;
+      [...db.children].forEach(c => c.setAttribute("aria-pressed", "false"));
+      b.setAttribute("aria-pressed", "true");
+      drawDepth();
+    });
+    db.appendChild(b);
+  });
+  drawDepth();
+  drawNuisance();
+  fiberBars();
+  glossary();
+  document.getElementById("gloss-q").addEventListener("input", glossary);
+
+  document.querySelectorAll("[data-stim]").forEach(btn => btn.addEventListener("click", () => {
+    stim.mode = btn.dataset.stim;
+    document.querySelectorAll("[data-stim]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+    if (stim.mode === "accel") stim.vel = 0.15;
+    setStimKnob(+document.getElementById("stim").value / 1000);
+    stimNote();
+  }));
+  document.getElementById("stim").addEventListener("input", e => setStimKnob(+e.target.value / 1000));
+  setStimKnob(0.18);
+  stimNote();
+  requestAnimationFrame(drawDisk);
+
+  const links = [...document.querySelectorAll(".rail a")];
+  const visible = new Map();
+  const obs = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (e.isIntersecting) visible.set(e.target.id, e.intersectionRatio);
+      else visible.delete(e.target.id);
+    }
+    let best = null;
+    let bestR = -1;
+    for (const [id, r] of visible) {
+      if (r > bestR) { best = id; bestR = r; }
+    }
+    links.forEach(a => {
+      if (best && a.getAttribute("href") === "#" + best) a.setAttribute("aria-current", "true");
+      else a.removeAttribute("aria-current");
+    });
+  }, { rootMargin: "-15% 0px -50% 0px", threshold: [0.05, 0.15, 0.4] });
+  links.forEach(a => {
+    const el = document.querySelector(a.getAttribute("href"));
+    if (el) obs.observe(el);
+  });
+}
+document.addEventListener("DOMContentLoaded", boot);
+</script>
+</body>
+</html>

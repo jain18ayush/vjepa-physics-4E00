@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Activation maps: direction, speed, acceleration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,460;0,7..72,650;1,7..72,460&family=Sora:wght@420;560;680&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #142028; --mute: #3a4c54; --field: #dfe8ea; --sheet: #f4f8f9;
+    --line: #b9c7cc; --spine: #0f766e; --chord: #9f1239; --cent: #142028;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--field); color: var(--ink);
+    font-family: Literata, "Iowan Old Style", Palatino, serif;
+    font-size: 17px; line-height: 1.5;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 64px; }
+  h1, h2, .ui { font-family: Sora, "Avenir Next", sans-serif; font-weight: 560; letter-spacing: -0.03em; line-height: 1.15; }
+  h1 { font-size: 32px; margin: 0 0 8px; max-width: 22ch; }
+  p { margin: 0 0 12px; max-width: 70ch; }
+  .lede { font-size: 18px; color: var(--mute); max-width: 56ch; }
+  .mute { color: var(--mute); }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 12px; }
+  button.tab, button.chip {
+    font-family: Sora, sans-serif; font-size: 13px;
+    background: transparent; border: 1px solid var(--line); color: var(--ink);
+    padding: 7px 12px; cursor: pointer;
+  }
+  button.tab[aria-pressed="true"], button.chip[aria-pressed="true"] {
+    background: var(--ink); color: #f4f8f9; border-color: var(--ink);
+  }
+  .stage {
+    display: grid; grid-template-columns: 1fr 280px; gap: 16px; align-items: start;
+  }
+  .canvas-wrap {
+    background: #fff; border: 1px solid var(--line); position: relative;
+  }
+  canvas { display: block; width: 100%; height: auto; cursor: crosshair; }
+  .side { background: var(--sheet); border: 1px solid var(--line); padding: 14px; }
+  .side h2 { font-size: 15px; margin: 0 0 8px; color: var(--mute); }
+  label.row {
+    display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center;
+    font-family: Sora, sans-serif; font-size: 12px; margin: 8px 0;
+  }
+  input[type="checkbox"] { accent-color: var(--ink); }
+  .swatch {
+    display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle;
+  }
+  .legend { font-family: Sora, sans-serif; font-size: 12px; color: var(--mute); margin-top: 10px; }
+  .legend div { margin: 4px 0; }
+  .readout {
+    font-family: Sora, sans-serif; font-size: 13px; margin-top: 12px;
+    padding-top: 12px; border-top: 1px solid var(--line); min-height: 5.5em;
+  }
+  .metric { font-size: 22px; font-weight: 680; letter-spacing: -0.04em; margin: 0; }
+  .metric span { display: block; font-size: 11px; font-weight: 420; color: var(--mute); }
+  .bar {
+    height: 10px; width: 100%; margin: 10px 0 4px; border-radius: 0;
+    background: linear-gradient(90deg, #1d4ed8, #0f766e, #d89a1a, #9f1239, #1d4ed8);
+  }
+  .note { font-family: Sora, sans-serif; font-size: 12px; color: var(--mute); margin-top: 14px; max-width: none; }
+  a { color: #1d4ed8; }
+  @media (max-width: 860px) {
+    .stage { grid-template-columns: 1fr; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>What the activations look like</h1>
+  <p class="lede">Layer 5, mean-pooled residuals, projected into the 2D plane of the label centroids. Each dot is one video. Color is the label we probed for. Overlays are the centroids and the path we walked for steering.</p>
+
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab" data-kind="direction" aria-pressed="true">Direction (circle + tube)</button>
+    <button type="button" class="tab" data-kind="speed" aria-pressed="false">Speed (flat)</button>
+    <button type="button" class="tab" data-kind="acceleration" aria-pressed="false">Acceleration (flat)</button>
+  </div>
+
+  <div class="stage">
+    <div class="canvas-wrap">
+      <canvas id="c" width="900" height="720" aria-label="Activation scatter"></canvas>
+    </div>
+    <aside class="side">
+      <h2>Overlays</h2>
+      <label class="row"><span>Data points</span><input type="checkbox" id="show-points" checked></label>
+      <label class="row"><span>Centroids (per label)</span><input type="checkbox" id="show-cents" checked></label>
+      <label class="row"><span>Fitted path through centroids</span><input type="checkbox" id="show-curve" checked></label>
+      <label class="row"><span>Steering spline</span><input type="checkbox" id="show-spline" checked></label>
+      <label class="row"><span>Steering chord</span><input type="checkbox" id="show-chord" checked></label>
+      <label class="row" id="row-fit"><span>Highlight train-fit points</span><input type="checkbox" id="show-fit"></label>
+      <label class="row" id="row-tube"><span>Point size ∝ distance to path (tube)</span><input type="checkbox" id="show-tube"></label>
+
+      <div class="chips" style="display:flex;flex-wrap:wrap;gap:6px;margin:10px 0" id="path-chips"></div>
+
+      <div class="bar" id="colorbar" title="Label color scale"></div>
+      <div class="legend" id="scale-legend"></div>
+
+      <div class="readout" id="readout">
+        <p class="metric" id="stats">—<span>hover a point</span></p>
+      </div>
+      <p class="note" id="note"></p>
+    </aside>
+  </div>
+
+  <p class="mute" style="margin-top:18px;font-size:14px">
+    This is a <strong>2D shadow</strong> of 1024-D (Part 2’s spline actually lived in 64 PCA dims). The plane is fit on the centroids so the spine is readable; residual scatter off the path is the “tube.” Direction forms a loop; speed/accel form an elongated streak where path and chord nearly agree.
+    Data: <code>artifacts/viz/*_pca2.json</code>. Related: <a href="tube_results_slideshow.html">tube results</a>, <a href="concept_slideshow.html">concepts</a>.
+  </p>
+</div>
+
+<script>
+const state = {
+  kind: "direction",
+  data: null,
+  pathKey: null,
+  hover: -1,
+  cache: {},
+};
+
+const $ = (id) => document.getElementById(id);
+
+function colorFor(label, kind, lo, hi) {
+  let t;
+  if (kind === "direction") {
+    t = ((label % 360) + 360) % 360 / 360;
+  } else {
+    t = hi === lo ? 0 : (label - lo) / (hi - lo);
+  }
+  // hue wheel for direction; teal→amber for scalars
+  if (kind === "direction") {
+    const h = t * 360;
+    return `hsl(${h} 62% 42%)`;
+  }
+  const h = 170 - t * 140;
+  return `hsl(${h} 55% 38%)`;
+}
+
+async function load(kind) {
+  if (state.cache[kind]) return state.cache[kind];
+  const res = await fetch(`artifacts/viz/${kind}_pca2.json`);
+  if (!res.ok) throw new Error("missing " + kind);
+  const data = await res.json();
+  state.cache[kind] = data;
+  return data;
+}
+
+function bounds(data) {
+  const xs = data.points.x, ys = data.points.y;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (let i = 0; i < xs.length; i++) {
+    minX = Math.min(minX, xs[i]); maxX = Math.max(maxX, xs[i]);
+    minY = Math.min(minY, ys[i]); maxY = Math.max(maxY, ys[i]);
+  }
+  // include curve
+  for (let i = 0; i < data.curve.x.length; i++) {
+    minX = Math.min(minX, data.curve.x[i]); maxX = Math.max(maxX, data.curve.x[i]);
+    minY = Math.min(minY, data.curve.y[i]); maxY = Math.max(maxY, data.curve.y[i]);
+  }
+  const padX = (maxX - minX) * 0.08 || 1;
+  const padY = (maxY - minY) * 0.08 || 1;
+  return { minX: minX - padX, maxX: maxX + padX, minY: minY - padY, maxY: maxY + padY };
+}
+
+function project(b, x, y, w, h, margin) {
+  const sx = (w - 2 * margin) / (b.maxX - b.minX);
+  const sy = (h - 2 * margin) / (b.maxY - b.minY);
+  const s = Math.min(sx, sy);
+  const cx = (b.minX + b.maxX) / 2;
+  const cy = (b.minY + b.maxY) / 2;
+  return [
+    w / 2 + (x - cx) * s,
+    h / 2 - (y - cy) * s,
+    s
+  ];
+}
+
+function draw() {
+  const data = state.data;
+  if (!data) return;
+  const canvas = $("c");
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, w, h);
+
+  const b = bounds(data);
+  const margin = 48;
+  const to = (x, y) => project(b, x, y, w, h, margin);
+
+  // axes
+  ctx.strokeStyle = "#d0dbdf";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const [ox, oy] = to(0, 0);
+  ctx.moveTo(margin, oy); ctx.lineTo(w - margin, oy);
+  ctx.moveTo(ox, margin); ctx.lineTo(ox, h - margin);
+  ctx.stroke();
+  ctx.fillStyle = "#3a4c54";
+  ctx.font = "12px Sora, sans-serif";
+  ctx.fillText("PC1", w - margin - 28, oy - 8);
+  ctx.fillText("PC2", ox + 8, margin + 14);
+
+  const lo = Math.min(...data.points.label);
+  const hi = Math.max(...data.points.label);
+  const showPoints = $("show-points").checked;
+  const showFit = $("show-fit").checked;
+  const showTube = $("show-tube").checked && data.kind === "direction";
+
+  if (showPoints) {
+    const resid = data.points.resid;
+    const rMax = Math.max(...resid);
+    for (let i = 0; i < data.n; i++) {
+      const [px, py] = to(data.points.x[i], data.points.y[i]);
+      let rad = 2.4;
+      if (showTube) rad = 1.6 + 5.5 * (resid[i] / (rMax || 1));
+      if (showFit && data.points.fit[i]) {
+        ctx.beginPath();
+        ctx.arc(px, py, rad + 1.2, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(20,32,40,0.35)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(px, py, rad, 0, Math.PI * 2);
+      ctx.fillStyle = colorFor(data.points.label[i], data.kind, lo, hi);
+      ctx.globalAlpha = showFit && !data.points.fit[i] ? 0.22 : 0.75;
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // curve through centroids
+  if ($("show-curve").checked) {
+    ctx.beginPath();
+    for (let i = 0; i < data.curve.x.length; i++) {
+      const [px, py] = to(data.curve.x[i], data.curve.y[i]);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    if (data.kind === "direction") ctx.closePath();
+    ctx.strokeStyle = "#0f766e";
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+  }
+
+  // path overlays
+  const path = data.paths[state.pathKey];
+  if (path) {
+    if ($("show-chord").checked) {
+      ctx.beginPath();
+      path.chord.forEach((p, i) => {
+        const [px, py] = to(p[0], p[1]);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.strokeStyle = "#9f1239";
+      ctx.setLineDash([6, 4]);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if ($("show-spline").checked) {
+      ctx.beginPath();
+      path.spline.forEach((p, i) => {
+        const [px, py] = to(p[0], p[1]);
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.strokeStyle = "#1d4ed8";
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      // endpoints
+      [[path.spline[0], "start"], [path.spline[path.spline.length - 1], "end"]].forEach(([p, lab]) => {
+        const [px, py] = to(p[0], p[1]);
+        ctx.beginPath();
+        ctx.arc(px, py, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#1d4ed8";
+        ctx.fill();
+      });
+    }
+  }
+
+  // centroids on top
+  if ($("show-cents").checked) {
+    for (let i = 0; i < data.centroids.x.length; i++) {
+      const [px, py] = to(data.centroids.x[i], data.centroids.y[i]);
+      ctx.beginPath();
+      ctx.arc(px, py, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#142028";
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  // hover
+  if (state.hover >= 0) {
+    const i = state.hover;
+    const [px, py] = to(data.points.x[i], data.points.y[i]);
+    ctx.beginPath();
+    ctx.arc(px, py, 7, 0, Math.PI * 2);
+    ctx.strokeStyle = "#142028";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // title strip
+  ctx.fillStyle = "#3a4c54";
+  ctx.font = "13px Sora, sans-serif";
+  const varPct = data.pca_var.map(v => (100 * v).toFixed(0) + "%").join(" + ");
+  ctx.fillText(`${data.kind} · L${data.L_star} · n=${data.n} · centroid-plane · ${varPct} of ambient variance`, margin, 28);
+}
+
+function updateSide() {
+  const data = state.data;
+  const keys = Object.keys(data.paths);
+  if (!state.pathKey || !data.paths[state.pathKey]) state.pathKey = keys[0];
+  const box = $("path-chips");
+  box.innerHTML = "";
+  keys.forEach(k => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip";
+    b.textContent = data.paths[k].label;
+    b.setAttribute("aria-pressed", k === state.pathKey ? "true" : "false");
+    b.addEventListener("click", () => { state.pathKey = k; updateSide(); draw(); });
+    box.appendChild(b);
+  });
+  $("row-tube").style.display = data.kind === "direction" ? "grid" : "none";
+  const unit = data.label_unit;
+  if (data.kind === "direction") {
+    $("scale-legend").textContent = "Color = heading around the hue wheel (0° → 360°).";
+    $("colorbar").style.background = "linear-gradient(90deg, #1d4ed8, #0f766e, #d89a1a, #9f1239, #7c3aed, #1d4ed8)";
+  } else {
+    $("scale-legend").textContent = `Color = ${data.kind} from low (teal) to high (red), in ${unit}.`;
+    $("colorbar").style.background = "linear-gradient(90deg, #0f766e, #d89a1a, #9f1239)";
+  }
+  $("note").textContent = data.note;
+  const path = data.paths[state.pathKey];
+  $("stats").innerHTML = `${data.n} clips<span>PC var ${(100*data.pca_var[0]).toFixed(0)}% / ${(100*data.pca_var[1]).toFixed(0)}% · path ${path.label}</span>`;
+}
+
+function nearest(mx, my) {
+  const data = state.data;
+  const b = bounds(data);
+  const canvas = $("c");
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const x = (mx - rect.left) * scaleX;
+  const y = (my - rect.top) * scaleY;
+  let best = -1, bestD = 12 * 12;
+  for (let i = 0; i < data.n; i++) {
+    const [px, py] = project(b, data.points.x[i], data.points.y[i], canvas.width, canvas.height, 48);
+    const d = (px - x) ** 2 + (py - y) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
+async function setKind(kind) {
+  state.kind = kind;
+  document.querySelectorAll(".tab").forEach(t => t.setAttribute("aria-pressed", t.dataset.kind === kind ? "true" : "false"));
+  state.data = await load(kind);
+  state.pathKey = null;
+  state.hover = -1;
+  updateSide();
+  draw();
+}
+
+document.querySelectorAll(".tab").forEach(btn => {
+  btn.addEventListener("click", () => setKind(btn.dataset.kind));
+});
+["show-points","show-cents","show-curve","show-spline","show-chord","show-fit","show-tube"].forEach(id => {
+  $(id).addEventListener("change", draw);
+});
+
+$("c").addEventListener("mousemove", (e) => {
+  if (!state.data) return;
+  const i = nearest(e.clientX, e.clientY);
+  state.hover = i;
+  if (i >= 0) {
+    const d = state.data;
+    const lab = d.points.label[i];
+    const unit = d.label_unit;
+    const mot = d.points.motion[i];
+    const fit = d.points.fit[i] ? "in fit set" : "held out of fit";
+    $("stats").innerHTML = `${lab.toFixed(d.kind === "direction" ? 1 : 2)}${unit}<span>${mot} · ${fit} · resid ${d.points.resid[i].toFixed(2)}</span>`;
+  }
+  draw();
+});
+$("c").addEventListener("mouseleave", () => {
+  state.hover = -1;
+  if (state.data) updateSide();
+  draw();
+});
+
+setKind("direction").catch(err => {
+  $("stats").textContent = "Could not load viz JSON: " + err.message;
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "id": 1507,
+  "primary_label": "speed",
+  "magnitude": 3.9404761904761902,
+  "theta_degrees": 264.375,
+  "motion": "velocity",
+  "speed_mps": 3.9404761904761902,
+  "acceleration_mps2": 0.0,
+  "start_position_xy_m": [
+    -1.1231793983134717,
+    0.1934478972657958
+  ],
+  "fps": 24,
+  "frames": 16
+}

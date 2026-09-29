@@ -1,0 +1,13 @@
+{
+  "id": 484,
+  "theta_degrees": 112.5,
+  "motion": "velocity",
+  "speed_mps": 2.0,
+  "acceleration_mps2": 0.0,
+  "start_position_xy_m": [
+    1.6413731916841439,
+    -0.4993159413558268
+  ],
+  "fps": 24,
+  "frames": 16
+}

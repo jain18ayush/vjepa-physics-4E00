@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Where a video model stores motion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,460;6..72,560&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --field: #10161c;
+    --ink: #e7eef4;
+    --muted: #93a3b3;
+    --faint: #6d7d8d;
+    --line: #2a3846;
+    --disk: #6ea2ff;
+    --amber: #e2a45a;
+    --mint: #8fbfb0;
+    --coral: #e07a6a;
+    --chalk: #f3e6c4;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: #070b0f;
+    color: var(--ink);
+    font-family: Outfit, "Avenir Next", sans-serif;
+  }
+  body {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+  }
+  #stage {
+    width: 1280px;
+    height: 720px;
+    position: relative;
+    background: var(--field);
+    overflow: hidden;
+    transform-origin: center center;
+  }
+  .slide {
+    display: none;
+    position: absolute;
+    inset: 0;
+    padding: 48px 68px 72px;
+    flex-direction: column;
+  }
+  .slide.on { display: flex; }
+  .kicker {
+    font-size: 15px;
+    color: var(--disk);
+    margin: 0 0 14px;
+    font-weight: 500;
+  }
+  h1 {
+    font-family: Newsreader, Georgia, serif;
+    font-weight: 560;
+    font-size: 58px;
+    line-height: 1.02;
+    letter-spacing: -0.02em;
+    margin: 0;
+  }
+  h2 {
+    font-family: Newsreader, Georgia, serif;
+    font-weight: 560;
+    font-size: 40px;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    margin: 0 0 18px;
+  }
+  p {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.35;
+    color: var(--ink);
+  }
+  .sub {
+    margin-top: 18px;
+    max-width: 740px;
+    color: var(--muted);
+    font-size: 22px;
+    line-height: 1.4;
+  }
+  .grow { flex: 1; min-height: 0; }
+  .row {
+    display: grid;
+    gap: 28px;
+    min-height: 0;
+    flex: 1;
+  }
+  .row.two { grid-template-columns: 1fr 1fr; align-items: center; }
+  .row.fig { grid-template-columns: 0.82fr 1.18fr; align-items: stretch; }
+  .row.widefig { grid-template-columns: 0.72fr 1.28fr; }
+  ul.clean {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  ul.clean li {
+    font-size: 22px;
+    line-height: 1.35;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+  }
+  ul.clean li:first-child { border-top: 0; }
+  .idx {
+    color: var(--faint);
+    display: inline-block;
+    width: 28px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+  }
+  th {
+    text-align: left;
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 15px;
+    padding: 0 12px 10px 0;
+  }
+  td {
+    padding: 9px 12px 9px 0;
+    border-top: 1px solid var(--line);
+    vertical-align: baseline;
+  }
+  td.num, th.num { text-align: right; padding-right: 0; }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    align-content: center;
+  }
+  .stat {
+    border-top: 2px solid var(--line);
+    padding-top: 14px;
+  }
+  .stat b {
+    display: block;
+    font-family: Newsreader, Georgia, serif;
+    font-size: 72px;
+    font-weight: 560;
+    letter-spacing: -0.03em;
+    line-height: 0.95;
+  }
+  .stat span {
+    display: block;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1.3;
+  }
+  .dir { color: var(--disk); }
+  .spd { color: var(--amber); }
+  .acc { color: var(--mint); }
+  .bad { color: var(--coral); }
+  .good { color: var(--chalk); }
+  figure {
+    margin: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  figure img {
+    width: 100%;
+    max-height: 430px;
+    object-fit: contain;
+    background: #f4f7fb;
+    border-radius: 2px;
+  }
+  figcaption {
+    margin-top: 8px;
+    color: var(--faint);
+    font-size: 14px;
+  }
+  .spec {
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    gap: 6px 18px;
+    font-size: 20px;
+    line-height: 1.35;
+  }
+  .spec i {
+    font-style: normal;
+    color: var(--muted);
+  }
+  .disk {
+    width: 86px;
+    height: 86px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 36%, #b9d2ff, var(--disk) 42%, #2c5ec4 78%);
+    box-shadow: 0 0 0 10px rgba(110, 162, 255, 0.08);
+    margin-bottom: 28px;
+  }
+  .hint {
+    margin-top: 22px;
+    color: var(--faint);
+    font-size: 16px;
+  }
+  #chrome {
+    position: absolute;
+    left: 68px;
+    right: 68px;
+    bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    color: var(--faint);
+    font-size: 14px;
+    pointer-events: none;
+  }
+  #barwrap {
+    flex: 1;
+    height: 2px;
+    background: var(--line);
+  }
+  #bar {
+    height: 2px;
+    width: 0;
+    background: var(--disk);
+  }
+  #notes {
+    display: none;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 28vh;
+    overflow: auto;
+    background: #0c1218;
+    color: #d5dee8;
+    border-top: 1px solid #2a3846;
+    padding: 16px 28px 20px;
+    font-size: 16px;
+    line-height: 1.4;
+    z-index: 5;
+  }
+  body.notes #notes { display: block; }
+  .svgwrap { display: flex; justify-content: center; }
+  svg text {
+    font-family: Outfit, sans-serif;
+    fill: var(--muted);
+  }
+  .call {
+    font-family: Newsreader, Georgia, serif;
+    font-size: 28px;
+    line-height: 1.25;
+    margin-top: 8px;
+  }
+  .fine {
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.4;
+    margin-top: 12px;
+  }
+  .tag {
+    margin: 0 0 6px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--disk);
+  }
+  .tag.found { color: var(--chalk); }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+    align-content: start;
+  }
+  .step {
+    border-top: 2px solid var(--line);
+    padding-top: 12px;
+  }
+  .step strong {
+    display: block;
+    font-family: Newsreader, Georgia, serif;
+    font-size: 28px;
+    font-weight: 560;
+    line-height: 1.1;
+    margin-bottom: 10px;
+  }
+  .step p {
+    font-size: 18px;
+    line-height: 1.35;
+    color: var(--muted);
+  }
+  h2.small { font-size: 34px; }
+  @media (prefers-reduced-motion: no-preference) {
+    .slide.on { animation: rise 220ms ease-out; }
+    @keyframes rise {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+
+  <section class="slide" data-note="Name the three variables and the one-sentence ending: speed and acceleration are flat, direction is a circle with thickness around it.">
+    <div class="disk" aria-hidden="true"></div>
+    <h1>Where a video model<br>stores motion</h1>
+    <p class="sub">Direction, speed, and acceleration inside a frozen V-JEPA 2. First I check that a simple readout can see them. Then I ask what shape that storage has.</p>
+    <p class="hint">Space to advance. N for the cue on this slide.</p>
+  </section>
+
+  <section class="slide" data-note="The world and the three questions, in plain language. A probe is just a readout I train. I do not train the video model.">
+    <p class="kicker">The experiment</p>
+    <h2>One blue disk, three questions.</h2>
+    <div class="row two">
+      <div class="spec">
+        <i>Videos</i><span>256×256, 16 frames. A blue disk on a dark field.</span>
+        <i>Direction</i><span>1,500 clips, 64 angles. Half coast, half speed up.</span>
+        <i>Speed</i><span>1,536 clips, from 0.25 to 4 m/s.</span>
+        <i>Acceleration</i><span>1,536 clips, from 0.25 to 10 m/s², starting from rest.</span>
+      </div>
+      <ul class="clean">
+        <li><span class="idx">1</span>At which layer can a readout see each variable?</li>
+        <li><span class="idx">2</span>Is it stored once, or copied many times?</li>
+        <li><span class="idx">3</span>If I edit those copies, does the readout actually change?</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="slide" data-note="Define the readout once. Sin and cosine, chance is 90 degrees, test clips are locked. Everything later is this same vector.">
+    <p class="kicker">Shared setup</p>
+    <h2>I freeze the model and train a readout.</h2>
+    <ul class="clean">
+      <li>V-JEPA 2 ViT-L, 24 layers, never updated. The predictor is off. I feed the real 16 frames.</li>
+      <li>Each layer gives 2,048 tokens. I average them into one vector of 1,024 numbers. That vector is what every later experiment edits.</li>
+      <li>A probe is a straight-line readout from that vector to the label. For direction it predicts sine and cosine of the angle, then I turn that back into degrees.</li>
+      <li>Training fits the readout. Validation chooses the layer. Test clips are untouched until the final check. A random angle is wrong by 90° on average.</li>
+    </ul>
+  </section>
+
+  <section class="slide" data-note="Say what I trained, then the result. Point at the blue jump. Speed and acceleration are already high at layer 0. Direction jumps at layer 5. I keep layer 5. The paper’s jump was layer 8.">
+    <p class="kicker">When it becomes readable</p>
+    <h2 class="small">I probe every layer. Direction turns on at layer 5.</h2>
+    <div class="row widefig">
+      <div>
+        <p class="tag">What I did</p>
+        <p>Train a fresh readout at each of the 24 layers. Choose the layer on validation only.</p>
+        <p class="tag found" style="margin-top:16px">What I found</p>
+        <p>Speed and acceleration are already readable at layer 0 (R² 0.80 and 0.79). Steady-motion direction jumps from <b class="dir">0.23</b> to <b class="dir">0.93</b> at layer 5. Later slides use layer 5.</p>
+        <p class="fine">R² near 1 means the readout captures the label. The same jump in the paper was at layer 8. I do not see that fade by the last layer.</p>
+      </div>
+      <figure>
+        <img src="../artifacts/figures/layer_curves.png" alt="Readout accuracy versus layer. Direction jumps at layer 5. Speed and acceleration are high from layer 0." />
+      </figure>
+    </div>
+  </section>
+
+  <section class="slide" data-note="Explain the procedure before the numbers. I delete the direction the readout used and try again. 82 means many copies of angle. 5 and 2 mean speed and acceleration are compact. The jagged curve is sine and cosine taking turns.">
+    <p class="kicker">How many copies, at layer 5</p>
+    <h2 class="small">I erase the readout and train another, until it fails.</h2>
+    <div class="stats" style="margin-top:8px">
+      <div class="stat">
+        <b class="dir">82</b>
+        <span>Direction. 41 rounds before the angle is gone. The curve is jagged: sine and cosine take turns.</span>
+      </div>
+      <div class="stat">
+        <b class="spd">5</b>
+        <span>Speed. A smooth decline. It stops while a little signal is left, because error has reached the “just guess the average” line.</span>
+      </div>
+      <div class="stat">
+        <b class="acc">2</b>
+        <span>Acceleration. Smooth, and gone after two rounds.</span>
+      </div>
+    </div>
+    <p class="fine">Each round removes only the direction that readout was using, then a new readout is trained in what remains. Direction is written down many times. Speed and acceleration are not. The paper’s direction count near its jump was about 40–50, on 8 angles rather than 64.</p>
+  </section>
+
+  <section class="slide" data-note="This is the slide that replaces the old axis wording. Walk the three cards left to right. No edit: the readout still knows the video. One probe: the reading moves and does not arrive. Five probes together: it now says about 90 degrees and has lost the original angle. Axis just meant one probe’s direction in the vector.">
+    <p class="kicker">Does editing those copies change the angle?</p>
+    <h2 class="small">I try to make every test clip read as 90°.</h2>
+    <p>On held-out clips, I edit the layer-5 vector only along the direction probes from the last experiment, so those probes output 90°. The rest of the vector stays as it was. A new readout, trained on unedited test clips, then says what angle it sees.</p>
+    <div class="steps" style="margin-top:22px">
+      <div class="step">
+        <strong>No edit</strong>
+        <p>The new readout still knows the video: <b class="good">19°</b> off the real angle. It is <b>90°</b> away from 90°, because the real angles are scattered all around the circle.</p>
+      </div>
+      <div class="step">
+        <strong>Edit 1 probe</strong>
+        <p>I change the vector along a single probe. The reading moves toward 90° (<b>58°</b> away) and starts to leave the real angle (<b>38°</b>). One copy is not the whole store.</p>
+      </div>
+      <div class="step">
+        <strong>Edit 5 probes</strong>
+        <p>I change those copies together. Now <b class="good">11°</b> from 90°, and <b class="bad">82°</b> from the angle in the video. The readout has been moved onto the angle I asked for.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="slide" data-note="Read the two columns as a swap. Left column falling means I reached 90. Right column rising means I left the original angle. If both got worse, I would have just broken the vector. Twenty probes: 6 degrees from the target, 89 from the truth. Same pattern for coasting and speeding-up clips.">
+    <p class="kicker">Same edit, more copies</p>
+    <h2 class="small">The two errors should move in opposite directions.</h2>
+    <div class="grow" style="display:flex; align-items:center;">
+      <table>
+        <thead>
+          <tr>
+            <th>Copies I edit</th>
+            <th class="num">Error vs 90°, the angle I asked for</th>
+            <th class="num">Error vs the angle in the video</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>None</td><td class="num">90°</td><td class="num">19°</td></tr>
+          <tr><td>1</td><td class="num">58°</td><td class="num">38°</td></tr>
+          <tr><td>5</td><td class="num">11°</td><td class="num">82°</td></tr>
+          <tr><td>20</td><td class="num"><b class="good">6°</b></td><td class="num">89°</td></tr>
+          <tr><td>All 41</td><td class="num">4°</td><td class="num">89°</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="fine">A worked example: a disk really moving at 10°, perfectly rewritten as 90°, would score about 0° in the left column and 80° in the right. Coasting clips and speeding-up clips follow the same swap. The paper needed about 20 probes to get within 12° of the target.</p>
+  </section>
+
+  <section class="slide" data-note="Four agreements, stated as sentences. Then the pivot: many copies might be one circle drawn over and over. That is the next experiment.">
+    <p class="kicker">Against the paper</p>
+    <h2 class="small">Same pattern, on an easier video.</h2>
+    <ul class="clean">
+      <li>Speed and acceleration are readable from the first layer. The paper found that too.</li>
+      <li>Direction appears in a jump, here at layer 5, in the paper at layer 8.</li>
+      <li>Direction takes many probes to erase, and the erasure curve is jagged. Speed takes a handful and falls smoothly.</li>
+      <li>Editing many probes on held-out clips moves the readout onto a chosen angle. I get there with fewer probes.</li>
+    </ul>
+    <p class="fine">The next question: are those many probes many facts about the disk, or many copies of one circle?</p>
+  </section>
+
+  <section class="slide" data-note="Say the procedure, then point at the plot. Teal follows the ramp. Red goes the wrong way around the circle. Halfway: 5.5 degrees on the curve, 171 on the straight line. They meet at the end, 18.6. Twenty probes land tighter, at 8.5, but only at the endpoint. A short hop around 0 degrees does not need the straight line to cut inside, so both paths land at 1.3.">
+    <p class="kicker">Is direction a circle?</p>
+    <h2 class="small">I walk a curve through the angles, and a straight line.</h2>
+    <div class="row widefig">
+      <div>
+        <p class="tag">What I did</p>
+        <p>At layer 5, average the training vectors that share an angle, and connect those averages with a smooth loop. Also draw the straight line from 0° to 180°. Put each test clip on each path and read the angle.</p>
+        <p class="tag found" style="margin-top:14px">What I found</p>
+        <p>Halfway, the loop is <b class="dir">5.5°</b> off the angle it should be. The straight line is <b class="bad">171°</b> off: the readout jumps across the circle. Both end at 18.6°. Editing 20 copies toward 180° ends tighter, at <b class="good">8.5°</b>, but it does not pass through the angles in between.</p>
+      </div>
+      <figure>
+        <img src="../artifacts/figures/part2_decode_dir_0_to_180.png" alt="Readout along a path from 0 to 180 degrees. The curve follows the ramp. The straight line swings the wrong way and meets it only at the end." />
+      </figure>
+    </div>
+  </section>
+
+  <section class="slide" data-note="Speed and acceleration do not need a curve. Say the procedure in one sentence: same curve-versus-line test on the magnitudes. Chord mid-error 0.10 versus spline 0.37 for speed. Neither hits 3.5 exactly; the readout says 2.9. Acceleration’s readout is weak, R² 0.33, so quote the comparison and not the absolute error.">
+    <p class="kicker">Same test for speed and acceleration</p>
+    <h2 class="small">For speed, the straight line is enough.</h2>
+    <div class="row widefig">
+      <div>
+        <p class="tag">What I did</p>
+        <p>Same two paths, from 0.5 to 3.5 m/s, and from 1 to 8 m/s². Read the magnitude at each step with a readout fit on unedited test clips.</p>
+        <p class="tag found" style="margin-top:14px">What I found</p>
+        <p>Halfway along the speed path, the straight line is off by <b class="spd">0.10</b> m/s and the curve by 0.37. Curvature is not helping. Neither path reaches 3.5 under this readout; both end at 2.9.</p>
+        <p class="fine">Acceleration looks the same, and its readout is weak (R² 0.33), so the absolute errors there are soft. A short angle hop, 22° to 338°, also needs no curve: both paths finish 1.3° off, while 20 probes finish at 8.4°.</p>
+      </div>
+      <figure>
+        <img src="../artifacts/figures/part2_decode_speed_0.5_to_3.5.png" alt="Speed readout along a path from about 0.5 to 3.5 meters per second. The curve and the straight line stay close." />
+      </figure>
+    </div>
+  </section>
+
+  <section class="slide" data-note="Procedure: start on the straight line and bend the path until the readout follows 0 to 180. Result: about 1 degree of error, but the path moves farther from the curve than the line was. The curve is a good route, not the only route. If someone quotes 8.8 from the markdown, the file says 19.8 for the unoptimized endpoint.">
+    <p class="kicker">Is the curve the only path that works?</p>
+    <h2 class="small">I bend the path until the readout is happy.</h2>
+    <p class="tag">What I did</p>
+    <p>Start on the straight line from 0° to 180°. Nudge the path, in the top 32 components, until the frozen readout tracks the angle I asked for at every step.</p>
+    <div class="stats" style="margin-top:22px">
+      <div class="stat">
+        <b class="dir">1°</b>
+        <span>Error of that bent path, at the middle and at the end. The readout got what it wanted.</span>
+      </div>
+      <div class="stat">
+        <b class="bad">3.3</b>
+        <span>How far the bent path sits from the curve. The straight line was closer, at 1.6.</span>
+      </div>
+      <div class="stat">
+        <b class="good">12°</b>
+        <span>Error of just walking the curve, in this run. Better behaved, worse score.</span>
+      </div>
+    </div>
+    <p class="fine">So the curve orders the angles, and plenty of nearby vectors still read as the right angle. That leftover room is the next measurement.</p>
+  </section>
+
+  <section class="slide" data-note="Procedure: pull each training point onto the curve, throw away the along-curve part, and see what sticks out. Then walk the curve and add a small sideways nudge so the readout hits the end angle. Two sideways directions drop the final error from 20 degrees to 3. The middle of the path still follows the ramp. Point at the cliff on the left plot.">
+    <p class="kicker">What are the extra copies for?</p>
+    <h2 class="small">I walk the curve, then nudge sideways.</h2>
+    <div class="row widefig">
+      <div>
+        <p class="tag">What I did</p>
+        <p>Pull each training vector onto the nearest point of the curve and remove the along-curve part. What remains sticks out sideways. Steering walks the curve and adds a little of that sideways offset so the readout hits the end angle.</p>
+        <p class="tag found" style="margin-top:14px">What I found</p>
+        <p>Almost all the scatter is sideways (energy 26, against 0.03 along the curve). The curve alone ends <b>20°</b> off. Two sideways directions end at <b class="good">2.8°</b>, and the middle of the path still follows the angles. Editing 20 copies with no curve, in this same run, ends at 3.5°.</p>
+      </div>
+      <figure>
+        <img src="../artifacts/figures/part2_tube_dir_0_to_180.png" alt="Final angle error versus how many sideways directions I add. The error drops at two directions. Along the path, the curve plus that nudge follows the ramp, and the straight line does not." />
+      </figure>
+    </div>
+  </section>
+
+  <section class="slide" data-note="Procedure: predict each label from the along-curve coordinates, and again from the sideways coordinates. Result: the curve knows angle and not speed. The sideways part knows speed and not angle. Removing speed only shrinks the tube by 28 percent. A step along the curve moves the angle 9 degrees; a step on the second sideways component barely moves it.">
+    <p class="kicker">What sits in that sideways scatter?</p>
+    <h2 class="small">The curve knows the angle. The sides know the speed.</h2>
+    <div class="row widefig">
+      <div>
+        <p class="tag">What I did</p>
+        <p>Predict each label twice: once from position along the curve, once from the first 10 sideways directions.</p>
+        <p class="tag found" style="margin-top:14px">What I found</p>
+        <p>Along the curve, angle is predictable (R² <b class="dir">0.55</b>) and speed is not. Sideways, speed is predictable (R² <b class="spd">0.70</b>) and angle is not (R² <b class="bad">−0.54</b>).</p>
+        <p class="fine">Removing speed from the vectors shrinks that sideways energy by 28% and leaves most of it. A step along the curve moves the decoded angle by 8.8°. A step on the second sideways direction moves it by 0.14°.</p>
+      </div>
+      <figure>
+        <img src="../artifacts/figures/tube_why_nuisance.png" alt="Which coordinates predict which label. Position on the curve predicts angle. The sideways coordinates predict speed and vertical start position, and do not predict angle." />
+      </figure>
+    </div>
+  </section>
+
+  <section class="slide" data-note="Last measurement and the landing sentence. Same curve at four layers. The sideways scatter grows from 3 to 221 while a step along the curve moves the angle less and less. Close with the recipe: walk the curve through intermediate angles, add about two sideways directions to hit an endpoint, and do not treat direction and speed as separate wires. I scored a readout, not pixels.">
+    <p class="kicker">The same measurement at four depths</p>
+    <h2 class="small">Once direction exists, the sideways room grows.</h2>
+    <div class="row widefig">
+      <div>
+        <p class="tag">What I did</p>
+        <p>Rebuild the curve and the sideways scatter at layers 0, 5, 12, and 23.</p>
+        <p class="tag found" style="margin-top:14px">What I found</p>
+        <p>Sideways energy goes <b>3 → 26 → 50 → 221</b>. A step along the curve moves the decoded angle by 29° at layer 0 and by under 1° at the output.</p>
+        <p class="call">Walk the curve to pass through angles. Add about two sideways directions to land. Direction and speed share that sideways room.</p>
+      </div>
+      <figure>
+        <img src="../artifacts/figures/tube_why_layers.png" alt="Sideways scatter grows from layer 0 to layer 23. A step along the curve moves the decoded angle less at deeper layers." />
+      </figure>
+    </div>
+  </section>
+
+<div id="chrome"><span id="count">1 / 14</span><div id="barwrap"><div id="bar"></div></div></div>
+</div>
+<div id="notes"></div>
+
+<script>
+  const slides = [...document.querySelectorAll(".slide")];
+  const notes = document.getElementById("notes");
+  const count = document.getElementById("count");
+  const bar = document.getElementById("bar");
+  let i = 0;
+
+  function fit() {
+    const stage = document.getElementById("stage");
+    const pad = document.body.classList.contains("notes") ? 0.72 : 0.96;
+    const scale = Math.min(
+      (window.innerWidth * pad) / 1280,
+      (window.innerHeight * (document.body.classList.contains("notes") ? 0.70 : 0.96)) / 720
+    );
+    stage.style.transform = "scale(" + scale + ")";
+  }
+
+  function show(n) {
+    i = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, k) => s.classList.toggle("on", k === i));
+    count.textContent = (i + 1) + " / " + slides.length;
+    bar.style.width = ((i + 1) / slides.length * 100) + "%";
+    notes.textContent = slides[i].dataset.note || "";
+    history.replaceState(null, "", "#" + (i + 1));
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (["ArrowRight", "PageDown", " "].includes(e.key)) {
+      e.preventDefault();
+      show(i + 1);
+    } else if (["ArrowLeft", "PageUp", "Backspace"].includes(e.key)) {
+      e.preventDefault();
+      show(i - 1);
+    } else if (e.key === "Home") {
+      show(0);
+    } else if (e.key === "End") {
+      show(slides.length - 1);
+    } else if (e.key === "n" || e.key === "N") {
+      document.body.classList.toggle("notes");
+      fit();
+    } else if (e.key === "f" || e.key === "F") {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+
+  document.getElementById("stage").addEventListener("click", (e) => {
+    const rect = document.getElementById("stage").getBoundingClientRect();
+    show(e.clientX > rect.left + rect.width / 2 ? i + 1 : i - 1);
+  });
+
+  window.addEventListener("resize", fit);
+  window.addEventListener("hashchange", () => {
+    const n = parseInt(location.hash.slice(1), 10);
+    if (Number.isFinite(n)) show(n - 1);
+  });
+  const start = parseInt((location.hash || "").slice(1), 10);
+  show(Number.isFinite(start) ? start - 1 : 0);
+  fit();
+</script>
+</body>
+</html>

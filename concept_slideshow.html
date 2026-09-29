@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Core concepts: probes, curves, and tubes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,460;0,7..72,650;1,7..72,460&family=Sora:wght@420;560;680&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #142028;
+    --mute: #3a4c54;
+    --field: #dfe8ea;
+    --sheet: #f4f8f9;
+    --line: #b9c7cc;
+    --probe: #1d4ed8;
+    --curve: #0f766e;
+    --chord: #9f1239;
+    --tube: #b45309;
+    --ok: #0f766e;
+    --bad: #9f1239;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--field);
+    color: var(--ink);
+    font-family: Literata, "Iowan Old Style", Palatino, serif;
+    font-size: 19px;
+    line-height: 1.5;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+  }
+  .top, .bot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 18px;
+    background: var(--sheet);
+    border-color: var(--line);
+  }
+  .top { border-bottom: 1px solid var(--line); justify-content: space-between; }
+  .bot { border-top: 1px solid var(--line); }
+  .brand { font-family: Sora, sans-serif; font-size: 13px; color: var(--mute); }
+  .progress {
+    flex: 1;
+    max-width: 280px;
+    height: 6px;
+    background: #d0dbdf;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress > i { display: block; height: 100%; width: 0; background: var(--probe); }
+  .score {
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    color: var(--mute);
+    white-space: nowrap;
+  }
+  .deck {
+    position: relative;
+    overflow: hidden;
+    min-height: 0;
+  }
+  .slide {
+    display: none;
+    height: 100%;
+    padding: 28px 36px 40px;
+    overflow: auto;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .slide.on { display: block; }
+  h1, h2, h3, .ui {
+    font-family: Sora, "Avenir Next", sans-serif;
+    font-weight: 560;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+  h1 { font-size: 34px; margin: 0 0 10px; max-width: 22ch; }
+  h2 { font-size: 28px; margin: 0 0 10px; max-width: 24ch; }
+  h3 { font-size: 16px; margin: 0 0 8px; }
+  p { margin: 0 0 12px; max-width: 62ch; }
+  .lede { font-size: 20px; color: var(--mute); max-width: 48ch; }
+  .tag {
+    display: inline-block;
+    font-family: Sora, sans-serif;
+    font-size: 12px;
+    color: var(--mute);
+    border: 1px solid var(--line);
+    padding: 3px 8px;
+    margin-bottom: 10px;
+  }
+  .tag.p1 { border-color: var(--probe); color: var(--probe); }
+  .tag.p2 { border-color: var(--curve); color: var(--curve); }
+  .tag.quiz { border-color: var(--tube); color: var(--tube); }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 24px;
+    align-items: start;
+    margin-top: 8px;
+  }
+  .panel {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 14px;
+  }
+  .caption {
+    font-family: Sora, sans-serif;
+    font-size: 12.5px;
+    color: var(--mute);
+    margin: 8px 0 0;
+    max-width: none;
+    line-height: 1.4;
+  }
+  svg.viz { width: 100%; height: auto; display: block; background: #fff; border: 1px solid var(--line); }
+  label.row {
+    display: grid;
+    grid-template-columns: 90px 1fr 48px;
+    gap: 10px;
+    align-items: center;
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    margin: 8px 0;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--ink); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  button.chip, button.nav, button.choice {
+    font-family: Sora, sans-serif;
+    font-size: 14px;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+  button.nav { min-width: 92px; }
+  button.nav.primary { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+  button.nav:disabled { opacity: 0.35; cursor: default; }
+  button.chip[aria-pressed="true"] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+  button.choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin: 0 0 8px;
+    padding: 10px 12px;
+  }
+  button.choice:hover { border-color: var(--ink); }
+  button.choice.correct { border-color: var(--ok); background: #e7f4f2; }
+  button.choice.wrong { border-color: var(--bad); background: #fbecef; }
+  button.choice:disabled { cursor: default; }
+  .feedback {
+    font-family: Sora, sans-serif;
+    font-size: 14px;
+    margin-top: 8px;
+    min-height: 1.4em;
+  }
+  .feedback.ok { color: var(--ok); }
+  .feedback.bad { color: var(--bad); }
+  .metric {
+    font-family: Sora, sans-serif;
+    font-size: 26px;
+    font-weight: 680;
+    letter-spacing: -0.04em;
+    margin: 0;
+  }
+  .metric span { display: block; font-size: 12px; font-weight: 420; color: var(--mute); }
+  .formula {
+    font-family: Sora, sans-serif;
+    font-size: 16px;
+    background: #fff;
+    border: 1px solid var(--line);
+    padding: 10px 12px;
+    margin: 0 0 12px;
+  }
+  ul.plain, ol.plain { margin: 0 0 12px; padding-left: 1.15em; max-width: 62ch; }
+  li { margin: 0 0 6px; }
+  .compare {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .compare .panel h3 { color: var(--mute); font-size: 13px; }
+  .bot .spacer { flex: 1; }
+  .bot .page {
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    color: var(--mute);
+  }
+  details.codebox {
+    margin-top: 16px;
+    border: 1px solid var(--line);
+    background: #142028;
+    color: #e7eef0;
+  }
+  details.codebox > summary {
+    cursor: pointer;
+    list-style: none;
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    padding: 10px 14px;
+    color: #b7c6cc;
+    border-bottom: 1px solid transparent;
+  }
+  details.codebox > summary::-webkit-details-marker { display: none; }
+  details.codebox > summary::before {
+    content: "▸ ";
+    color: #7dd3c0;
+  }
+  details.codebox[open] > summary {
+    border-bottom-color: #2a3840;
+  }
+  details.codebox[open] > summary::before { content: "▾ "; }
+  details.codebox summary code {
+    color: #7dd3c0;
+    font-size: 12px;
+  }
+  details.codebox pre {
+    margin: 0;
+    padding: 12px 14px 16px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: #e7eef0;
+  }
+  details.codebox .why {
+    font-family: Sora, sans-serif;
+    font-size: 12px;
+    color: #8fa3ab;
+    padding: 0 14px 12px;
+    margin: 0;
+    max-width: none;
+    line-height: 1.45;
+  }
+  .top .code-toggle {
+    font-family: Sora, sans-serif;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--mute);
+    padding: 4px 8px;
+    cursor: pointer;
+  }
+  .top .code-toggle[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--sheet);
+    border-color: var(--ink);
+  }
+  @media (max-width: 860px) {
+    .grid, .compare { grid-template-columns: 1fr; }
+    h1 { font-size: 28px; }
+    .slide { padding: 20px 16px 32px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Probes → curves → tubes</div>
+    <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+    <button type="button" class="code-toggle" id="code-toggle" aria-pressed="false">Expand all code</button>
+    <div class="score" id="score">Exercises 0 / 6</div>
+  </header>
+
+  <div class="deck" id="deck">
+
+    <!-- 0 -->
+    <section class="slide on" data-id="0">
+      <span class="tag">Orientation</span>
+      <h1>Two papers, one confusion</h1>
+      <p class="lede">You already saw experiment writeups. This deck ignores the numbers until you own the pictures. The whole project is three nested ideas.</p>
+      <div class="compare">
+        <div class="panel">
+          <h3>1. A probe</h3>
+          <p>A linear “lie detector.” Given an activation vector, output a number (or an angle). Good when the property is linearly readable.</p>
+        </div>
+        <div class="panel">
+          <h3>2. A curve</h3>
+          <p>Where activations sit as the property changes continuously. Steering should walk that curve, not cut across it.</p>
+        </div>
+        <div class="panel">
+          <h3>3. A tube</h3>
+          <p>The curve is only a spine. Real activations form a thick neighborhood around it. Thickness is not the same as “more probe directions.”</p>
+        </div>
+      </div>
+      <p style="margin-top:18px">Part 1 of the take-home is Joseph et al.: find probes for speed, acceleration, and direction in V-JEPA. Part 2 is Goodfire: fit a curve through concept averages and ask whether steering should follow it. The “tube” is what you get when both stories are partly true.</p>
+      <details class="codebox">
+        <summary>Derive it · where the code lives</summary>
+        <p class="why">Each idea below maps to a script under <code>scripts/</code>. Open these as you go.</p>
+<pre><code># Part 1 — Joseph et al.
+scripts/extract_activations.py   # video → (N, 24, 1024) pooled residuals
+scripts/probe_layers.py           # lie detector at every layer → L*
+scripts/nullspace.py              # delete probe, probe again
+scripts/steer.py                  # edit subspace, score with held-out probe
+scripts/common.py                 # train_probe, project_out, splits
+scripts/metrics.py                # circular MAE, sine/cosine targets
+
+# Part 2 — Goodfire-style geometry
+scripts/part2_splines.py          # PCA + centroids + cubic spline + chord
+scripts/part2_pullback.py         # optimize path for the probe
+scripts/part2_tube.py             # spine + normal bundle
+scripts/part2_tube_why.py         # fiber / nuisance / copies</code></pre>
+      </details>
+    </section>
+
+    <!-- 1 -->
+    <section class="slide" data-id="1">
+      <span class="tag p1">Part 1 · idea 1</span>
+      <h2>An activation is a point in a big space</h2>
+      <div class="grid">
+        <div>
+          <p>V-JEPA’s encoder turns a short video into vectors. After each transformer block you get a list of tokens. We average them into one vector of length <strong>1024</strong>.</p>
+          <p>So every clip, at every layer, is a single point in 1024-dimensional space. Speed, acceleration, and direction are properties of the clip. The research question is: <em>which properties can you read off that point with a simple linear map?</em></p>
+          <div class="formula">prediction = W · h + b</div>
+          <p><code>h</code> is the 1024-vector. <code>W</code> is a matrix of weights the probe learns. For speed, the prediction is one number. For direction, it is a pair <code>(sin θ, cos θ)</code> so the circle has no awkward cut at 0°/360°.</p>
+          <p>Nothing here trains the video model. The encoder stays frozen. Only the tiny probe is trained.</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="space-svg" viewBox="0 0 420 300" role="img" aria-label="Activation space cartoon"></svg>
+          <label class="row">Layer
+            <input id="space-layer" type="range" min="0" max="23" value="5">
+            <span id="space-layer-read">5</span>
+          </label>
+          <p class="caption">Dots are toy activations colored by direction. Early layers: colors mixed. Later: colors separate along a loop. This is a cartoon of “becoming linearly readable,” not the real 1024-D data.</p>
+        </div>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · <code>scripts/extract_activations.py</code></summary>
+        <p class="why">Frozen forward pass. Keep blocks 0..23. Mean-pool tokens → one vector per layer. Saved as <code>artifacts/activations/&lt;dataset&gt;.npz</code> with shape <code>(N, 24, 1024)</code>.</p>
+<pre><code>out = model(
+    pixel_values_videos=pixels,   # (B, 16, 3, 256, 256)
+    output_hidden_states=True,
+    skip_predictor=True,          # never run the predictor
+)
+hs = out.hidden_states
+# hs[0] = patch embedding; hs[1+ell] = residual after block ell
+pooled = np.zeros((B, 24, 1024), np.float32)
+for ell in range(24):
+    h = hs[1 + ell].float()       # (B, 2048, 1024)
+    pooled[:, ell, :] = h.mean(dim=1).cpu().numpy()</code></pre>
+      </details>
+    </section>
+
+    <!-- 2 -->
+    <section class="slide" data-id="2">
+      <span class="tag p1">Part 1 · idea 2</span>
+      <h2>A probe is a lie detector, not a map of the space</h2>
+      <div class="grid">
+        <div>
+          <p>Think of the classic linear “lie detector” in interpretability: train a classifier on activations to detect a property (truthful vs lying, male vs female names, toxic vs clean). If it works, the property is <strong>linearly readable</strong>.</p>
+          <p>That is a statement about a <em>function</em> of the activation:</p>
+          <div class="formula">score = w · h</div>
+          <p>Geometrically, <code>w</code> is one arrow. The probe says: “project the point onto this arrow; the number you get is the property.” Everything perpendicular to <code>w</code> is invisible to that probe.</p>
+          <p>So a great probe does <strong>not</strong> tell you:</p>
+          <ul class="plain">
+            <li>whether activations for different values form a line, a circle, or a cloud,</li>
+            <li>whether other properties are mixed into the leftover directions,</li>
+            <li>how to move from “slow” to “fast” without breaking other things.</li>
+          </ul>
+          <p>It only tells you: <em>I can read this property with a linear score.</em></p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="probe-svg" viewBox="0 0 420 300" role="img" aria-label="Probe as a projection"></svg>
+          <label class="row">Move a point
+            <input id="probe-t" type="range" min="0" max="1000" value="350">
+            <span id="probe-t-read">0.35</span>
+          </label>
+          <p class="metric" id="probe-score">0.00<span>probe score = w · h</span></p>
+          <p class="caption">Blue arrow is the probe direction. Drag the point. The score only cares about the projection onto the arrow. Sliding along the dashed line (perpendicular to w) does not change the score at all.</p>
+        </div>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · <code>scripts/common.py</code> + <code>metrics.py</code></summary>
+        <p class="why">A probe is literally <code>nn.Linear(1024, n_out)</code> trained with MSE. Direction targets are sine/cosine, not the raw angle.</p>
+<pre><code># targets
+y = theta_to_sincos(theta_degrees)   # (N, 2) = [sin θ, cos θ]
+# or for speed/accel: y = magnitude[:, None]
+
+probe = nn.Linear(1024, y.shape[1])  # bias trained; not part of subspace later
+opt = torch.optim.Adam(probe.parameters(), lr=1e-3, weight_decay=1e-4)
+for _ in range(epochs):
+    pred = probe(X)
+    loss = ((pred - y) ** 2).mean()
+    loss.backward(); opt.step()
+
+# read angle back
+pred_deg = degrees(atan2(pred[:, 0], pred[:, 1])) % 360
+err = ((pred_deg - true_deg + 180) % 360) - 180   # circular MAE</code></pre>
+      </details>
+    </section>
+
+    <!-- 3 quiz -->
+    <section class="slide" data-id="3">
+      <span class="tag quiz">Exercise 1</span>
+      <h2>What did the probe just tell you?</h2>
+      <p>You train a linear probe on layer-5 activations to predict disk speed. Validation R² is 0.95. Which claim is justified?</p>
+      <div class="panel" style="max-width:640px">
+        <button type="button" class="choice" data-q="1" data-a="0">Speed lives on a 1D curve in activation space.</button>
+        <button type="button" class="choice" data-q="1" data-a="1">A linear function of the activation recovers speed almost perfectly.</button>
+        <button type="button" class="choice" data-q="1" data-a="2">Editing the probe direction is the only way to change decoded speed.</button>
+        <button type="button" class="choice" data-q="1" data-a="3">Speed is unrelated to direction in the latent.</button>
+        <p class="feedback" id="fb-1"></p>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · what “R² = 0.95” is in code</summary>
+<pre><code>from sklearn.metrics import r2_score
+pred = probe(X_val).detach().cpu().numpy()
+r2 = r2_score(y_val, pred, multioutput="uniform_average")
+# This number only scores the linear map. It never inspects
+# whether points lie on a curve, a cloud, or a line.</code></pre>
+      </details>
+    </section>
+
+    <!-- 4 -->
+    <section class="slide" data-id="4">
+      <span class="tag p1">Part 1 · experiment A</span>
+      <h2>Ask the probe at every layer</h2>
+      <div class="grid">
+        <div>
+          <p>Train one probe per layer. Plot how well it reads each property. That answers: <em>when</em> does the property become available?</p>
+          <p>On this project’s blue-disk videos:</p>
+          <ul class="plain">
+            <li><strong>Speed</strong> and <strong>acceleration magnitude</strong> are already readable at layer 0.</li>
+            <li><strong>Direction</strong> is weak early and jumps around layer 5.</li>
+          </ul>
+          <p>Joseph et al. saw the same ordering on more complex videos, with the direction jump near layer 8. The ordering is the scientific claim. Exact layer numbers move with the dataset.</p>
+          <p>They call the direction jump the <strong>Physics Emergence Zone</strong>. After that, every steering experiment in this project uses the chosen layer (here: 5).</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="layer-svg" viewBox="0 0 420 260" role="img" aria-label="Layer curves"></svg>
+          <label class="row">Layer
+            <input id="layer-t" type="range" min="0" max="23" value="5">
+            <span id="layer-t-read">5</span>
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px" id="layer-readout"></div>
+          <p class="caption">Real validation R² from this project. Scrub to see scores at each depth.</p>
+        </div>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · <code>scripts/probe_layers.py</code></summary>
+        <p class="why">Sweep every layer. Pick <code>L*</code> from velocity-direction val R² with the midpoint rule. Test never enters this choice.</p>
+<pre><code># At each layer ell, fit probe on train, score on val
+for ell in range(24):
+    X = layers[:, ell, :]          # (N, 1024)
+    probe, hp, metrics = train_probe_appendix_b_best(
+        X_tr, y_tr, X_va, y_va, kind="direction", device=device
+    )
+    val_r2[ell] = metrics["r2"]
+
+# Choose emergence layer (velocity-direction series)
+r0, rmax = val_r2[0], val_r2.max()
+L_emerg = first ell with val_r2[ell] >= (r0 + rmax) / 2
+L_star = L_emerg if speed_r2[L_emerg] >= 0.5 and accel_r2[L_emerg] >= 0.5 \
+         else argmax(val_r2)       # here: L_star = 5</code></pre>
+      </details>
+    </section>
+
+    <!-- 5 quiz -->
+    <section class="slide" data-id="5">
+      <span class="tag quiz">Exercise 2</span>
+      <h2>Why pick a layer at all?</h2>
+      <p>You want to edit direction in the latent. Why not always intervene at the last layer, where direction R² is highest?</p>
+      <div class="panel" style="max-width:640px">
+        <button type="button" class="choice" data-q="2" data-a="0">Because the last layer is where the predictor lives, and we skipped the predictor.</button>
+        <button type="button" class="choice" data-q="2" data-a="1">Because “readable” is not the same as “where the concept first becomes available / where we chose to study steering,” and later layers may thicken or reorganize around the concept.</button>
+        <button type="button" class="choice" data-q="2" data-a="2">Because R² at the last layer is always fake.</button>
+        <button type="button" class="choice" data-q="2" data-a="3">Because speed disappears by the last layer.</button>
+        <p class="feedback" id="fb-2"></p>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · why the code locks <code>L*</code> early</summary>
+<pre><code># summary.json after layer sweep — every later script reads this
+L_star = layer_choice["L_star"]   # 5 on this run
+
+# nullspace.py / steer.py / part2_*.py all do:
+X = activations["layers"][:, L_star, :]
+# Same layer for fair comparison. Highest R² layer is recorded
+# (L_peak) but not used for steering in this project.</code></pre>
+      </details>
+    </section>
+
+    <!-- 6 -->
+    <section class="slide" data-id="6">
+      <span class="tag p1">Part 1 · experiment B</span>
+      <h2>Delete the probe. Is the property still there?</h2>
+      <div class="grid">
+        <div>
+          <p>One probe direction might be enough. Or the network might store the same property many times along different axes.</p>
+          <p><strong>Iterative nullspace probing</strong>:</p>
+          <ol class="plain">
+            <li>Fit a probe.</li>
+            <li>Project its direction(s) out of every activation (set that component to zero).</li>
+            <li>Fit a new probe on what is left.</li>
+            <li>Repeat until the probe fails.</li>
+          </ol>
+          <p>If it fails after 1–2 rounds, the property was low-dimensional. If it keeps succeeding for dozens of rounds, the property is stored <strong>redundantly</strong> across many orthogonal directions.</p>
+          <p>In this project: direction kept working for ~41 probes (82 dimensions, because each direction probe removes up to 2 axes). Speed died after ~5. Acceleration after ~2.</p>
+          <p>That is still a probe story: “how many independent lie detectors can I train in a row?” It is not yet a story about curves.</p>
+        </div>
+        <div class="panel">
+          <div class="chips" role="group" aria-label="Variable">
+            <button type="button" class="chip" data-null="dir" aria-pressed="true">Direction</button>
+            <button type="button" class="chip" data-null="spd" aria-pressed="false">Speed</button>
+            <button type="button" class="chip" data-null="acc" aria-pressed="false">Acceleration</button>
+          </div>
+          <svg class="viz" id="null-svg" viewBox="0 0 420 240" role="img" aria-label="Nullspace curve"></svg>
+          <label class="row">Iteration
+            <input id="null-k" type="range" min="0" max="41" value="0">
+            <span id="null-k-read">0</span>
+          </label>
+          <p class="caption" id="null-note"></p>
+        </div>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · <code>scripts/nullspace.py</code> + <code>common.project_out</code></summary>
+        <p class="why">Fit, score, QR the weight, subtract that subspace from X, repeat. The probe that crosses the stop rule is not kept.</p>
+<pre><code>def project_out(X, weight):           # weight: (n_out, 1024)
+    Q, R = np.linalg.qr(weight.T, mode="reduced")
+    Q = Q[:, np.abs(np.diag(R)) >= 1e-6]
+    return X - X @ Q @ Q.T            # remove those columns from every row
+
+X_tr, X_va = X[train].copy(), X[val].copy()
+kept = []
+for k in range(max_iters):
+    probe = train_probe_c11(X_tr, y_tr, kind=kind, device=device)
+    metrics = score_probe(probe, X_va, y_va, kind=kind)
+    if should_stop(kind, metrics):    # dir: R²&lt;0.1 or MAE&gt;80°
+        break
+    kept.append(probe)
+    X_tr = project_out(X_tr, probe.weight)
+    X_va = project_out(X_va, probe.weight)
+
+dim = 2 * len(kept) if kind == "direction" else len(kept)</code></pre>
+      </details>
+    </section>
+
+    <!-- 7 quiz -->
+    <section class="slide" data-id="7">
+      <span class="tag quiz">Exercise 3</span>
+      <h2>Redundancy is not geometry yet</h2>
+      <p>Direction needs ~40+ orthogonal probes before it becomes unreadable. What is the fairest reading?</p>
+      <div class="panel" style="max-width:640px">
+        <button type="button" class="choice" data-q="3" data-a="0">There are ~40 different physical concepts mixed into “direction.”</button>
+        <button type="button" class="choice" data-q="3" data-a="1">Angle is linearly readable from many independent directions; the network stores it more than once.</button>
+        <button type="button" class="choice" data-q="3" data-a="2">Direction must live on a circle.</button>
+        <button type="button" class="choice" data-q="3" data-a="3">Linear probes cannot measure direction at all.</button>
+        <p class="feedback" id="fb-3"></p>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · dimensionality from the loop</summary>
+<pre><code># After the nullspace run (velocity direction):
+n_kept = 41
+dimensionality = 2 * n_kept   # = 82, because each probe is 2×1024
+
+# That integer answers: "how many orthogonal linear readouts
+# still work?" It does NOT build a circle or a tube.</code></pre>
+      </details>
+    </section>
+
+    <!-- 8 -->
+    <section class="slide" data-id="8">
+      <span class="tag p1">Part 1 · experiment C</span>
+      <h2>Steering: edit the activation, then ask a second probe</h2>
+      <p class="lede" style="margin-top:0"><a href="steering_visual.html">Open the step-by-step steering visual →</a></p>
+      <div class="grid">
+        <div>
+          <p>Correlation is not control. To test control:</p>
+          <ol class="plain">
+            <li>Build a subspace from the training probes (the nullspace sequence).</li>
+            <li>On a held-out clip, replace the coordinates inside that subspace so the training probes all output a target angle (here: 90°).</li>
+            <li>Leave everything orthogonal to the subspace alone.</li>
+            <li>Read the edited vector with a <strong>new</strong> probe that never saw the edit.</li>
+          </ol>
+          <div class="formula">x* = V c* + (x − V Vᵀ x)</div>
+          <p>One probe barely moves the decoded angle. Many coordinated probes do. Error to 90° falls; error to the clip’s true angle rises. That opposing pair is the causal signature.</p>
+          <p>Still a subspace story: “move along several probe axes at once.” We have not drawn a curve.</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="steer-svg" viewBox="0 0 420 260" role="img" aria-label="Steering dial"></svg>
+          <label class="row">Probes used
+            <input id="steer-n" type="range" min="0" max="7" value="0">
+            <span id="steer-n-read">0</span>
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <p class="metric" id="steer-tgt">90°<span>error to target 90°</span></p>
+            <p class="metric" id="steer-tru">19°<span>error to true angle</span></p>
+          </div>
+          <p class="caption">Real held-out numbers from this project. Gray = target. Blue = what the evaluation probe reads.</p>
+        </div>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · <code>scripts/steer.py</code></summary>
+        <p class="why">Build orthonormal V from the first n probe weights. Replace coordinates inside V so every included probe outputs (sin θ*, cos θ*). Score with a probe fit only on unsteered test.</p>
+<pre><code>def steer(x, probes_n, theta_star_rad):
+    M = torch.cat([p.weight.T for p in probes_n], dim=1)  # (1024, 2n)
+    V, _ = torch.linalg.qr(M, mode="reduced")
+    x_perp = x - V @ (V.T @ x)          # leave orthogonal complement
+    t = tensor([sin(θ*), cos(θ*)])
+    rows, rhs = [], []
+    for p in probes_n:
+        rows.append(p.weight @ V)       # (2, rank)
+        rhs.append(t - p.bias - p.weight @ x_perp)
+    c_star = lstsq(cat(rows), cat(rhs)).solution
+    return V @ c_star + x_perp          # x*
+
+# Evaluation probe: fit on unsteered test ONLY, then freeze
+eval_probe = train_probe_c11(X_test, sincos(y_test), kind="direction")
+for n in [1, 5, 10, 20, 41]:
+    X_star = stack([steer(x, probes[:n], π/2) for x in X_test])
+    mae_to_90 = circular_mae(eval_probe(X_star), 90°)
+    mae_to_truth = circular_mae(eval_probe(X_star), y_test)</code></pre>
+      </details>
+    </section>
+
+    <!-- 9 -->
+    <section class="slide" data-id="9">
+      <span class="tag">Bridge</span>
+      <h2>What Part 1 cannot see</h2>
+      <p class="lede">Part 1 answers: readable? how many axes? editable with those axes? It does not answer: what shape do the activations form as the label changes?</p>
+      <div class="compare">
+        <div class="panel">
+          <h3>Probe / subspace picture</h3>
+          <p>Property = linear score(s). Geometry = a stack of arrows. Intervention = slide along those arrows.</p>
+        </div>
+        <div class="panel">
+          <h3>Manifold picture</h3>
+          <p>Property = position along a curve of average activations. Geometry = the curve. Intervention = walk the curve.</p>
+        </div>
+        <div class="panel">
+          <h3>Why you need both</h3>
+          <p>A circle needs many linear probes to cover sine and cosine copies. A subspace edit does not tell you that walking halfway should pass through 90°.</p>
+        </div>
+      </div>
+      <p style="margin-top:16px">Part 2 imports Goodfire’s manifold steering to ask the shape question on the same activations.</p>
+      <details class="codebox">
+        <summary>Derive it · same <code>h</code>, new object</summary>
+<pre><code># Part 1 ends with: probes, a subspace V, and L*
+# Part 2 starts from the SAME tensor — no new encoder pass
+X = np.load("artifacts/activations/direction.npz")["layers"][:, 5, :]
+
+# New objects (not probe weights):
+#   centroids[label] = mean(X[y == label])
+#   s(u)             = cubic spline through centroids
+#   chord(t)         = (1-t)*s(u0) + t*s(u1)
+# The probe is only the *readout* of those paths.</code></pre>
+      </details>
+    </section>
+
+    <!-- 10 -->
+    <section class="slide" data-id="10">
+      <span class="tag p2">Part 2 · idea 1</span>
+      <h2>Centroids, then a spline</h2>
+      <div class="grid">
+        <div>
+          <p>Group every training clip by its label (each of 64 angles, or each speed). Average the activations in a group. That average is a <strong>centroid</strong>.</p>
+          <p>Connect the centroids in label order with a smooth curve (a cubic spline). For direction, the order is circular, so the spline is <strong>periodic</strong>: 0° meets 360°.</p>
+          <p>This curve is not discovered by an unsupervised manifold algorithm. You already know the ordering from the labels. The spline is just the smoothest path through the averages.</p>
+          <p>Goodfire’s claim: if you want to change the concept from A to B, move along this curve. Do not take the straight line between A and B.</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="cent-svg" viewBox="0 0 420 300" role="img" aria-label="Centroids and spline"></svg>
+          <label class="row">Show cloud
+            <input id="cent-cloud" type="range" min="0" max="1000" value="0">
+            <span id="cent-cloud-read">off</span>
+          </label>
+          <p class="caption">Black dots = centroids (one per angle). Teal = spline through them. Drag “cloud” to fade in individual activations around each centroid — foreshadowing the tube.</p>
+        </div>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · <code>scripts/part2_splines.py</code> · <code>fit_spline</code></summary>
+        <p class="why">PCA on train → average per label → cubic spline in that subspace. Direction uses a periodic boundary so 0° meets 360°.</p>
+<pre><code>pca = PCA(n_components=64).fit(X_train)
+Z = pca.transform(X_train)
+
+centroids, labels = [], []
+for lab in np.unique(y_train):
+    centroids.append(Z[y_train == lab].mean(axis=0))
+    labels.append(lab)
+centroids = np.stack(centroids)
+
+if kind == "direction":
+    u = (labels % 360) / 360.0
+    # periodic: append first point at u=1 so the spline closes
+    u_fit = np.r_[u, 1.0]
+    c_fit = np.vstack([centroids, centroids[0]])
+    spline = CubicSpline(u_fit, c_fit, axis=0, bc_type="periodic")
+else:
+    u = (labels - labels.min()) / (labels.max() - labels.min())
+    spline = CubicSpline(u, centroids, axis=0, bc_type="natural")
+
+# Steering later: replace only the PCA block; keep leftover
+leftover = X - pca.inverse_transform(pca.transform(X))
+x_hat = leftover + pca.inverse_transform(spline(u_new))</code></pre>
+      </details>
+    </section>
+
+    <!-- 11 -->
+    <section class="slide" data-id="11">
+      <span class="tag p2">Part 2 · idea 2</span>
+      <h2>Chord vs curve: the middle is the test</h2>
+      <div class="grid">
+        <div>
+          <p>Both paths share endpoints. Only the middle differs.</p>
+          <div class="formula">chord: (1−t)·h₀ + t·h₁</div>
+          <div class="formula">spline: s( (1−t)·u₀ + t·u₁ )</div>
+          <p>On a half-turn of the direction circle, the chord cuts through the interior. Midway you are not “at 90°.” You are at a mixture of 0° and 180° — or something the probe does not treat as an angle at all.</p>
+          <p>On this project’s data, mid-path error to the claimed angle was about <strong>5°</strong> on the spline and about <strong>171°</strong> on the chord. Endpoints match by construction.</p>
+          <p>For speed (a nearly flat variable), spline and chord almost agree. Curvature only matters when the concept is curved.</p>
+        </div>
+        <div class="panel">
+          <div class="chips">
+            <button type="button" class="chip" data-path="spline" aria-pressed="true">Walk spline</button>
+            <button type="button" class="chip" data-path="chord" aria-pressed="false">Walk chord</button>
+          </div>
+          <svg class="viz" id="walk-svg" viewBox="0 0 420 280" role="img" aria-label="Walk spline or chord"></svg>
+          <label class="row">Progress
+            <input id="walk-t" type="range" min="0" max="1000" value="500">
+            <span id="walk-t-read">0.50</span>
+          </label>
+          <p class="metric" id="walk-angle">90°<span id="walk-note">decoded angle (toy probe on the circle)</span></p>
+          <p class="caption">Toy 2D circle. On the chord at t=0.5 the “decoded angle” becomes meaningless / jumps. On the spline it passes through 90°.</p>
+        </div>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · path construction in <code>part2_splines.py</code></summary>
+        <p class="why">Both paths live in the same 64-D PCA block. Only the interpolation differs. Score every waypoint with a frozen eval probe.</p>
+<pre><code>ts = np.linspace(0, 1, 21)
+u_t = circular_lerp(u0, u1, ts)          # shorter arc on the circle
+
+for t, u in zip(ts, u_t):
+    z_spline = spline(u)                 # on the curve
+    z_chord  = (1 - t) * spline(u0) + t * spline(u1)  # straight cut
+
+    X_s = leftover + pca.inverse_transform(z_spline)
+    X_c = leftover + pca.inverse_transform(z_chord)
+
+    ang_s = atan2_deg(eval_probe(X_s))   # ~ claimed angle mid-path
+    ang_c = atan2_deg(eval_probe(X_c))   # teleports on a half turn
+
+# On this data, 0°→180° mid-path:
+#   spline MAE → claimed ≈ 5.5°
+#   chord  MAE → claimed ≈ 171°</code></pre>
+      </details>
+    </section>
+
+    <!-- 12 quiz -->
+    <section class="slide" data-id="12">
+      <span class="tag quiz">Exercise 4</span>
+      <h2>When is the chord fine?</h2>
+      <p>You want to steer from speed 1.0 m/s to 1.2 m/s. Part 1 said speed is ~5-dimensional and almost linear from layer 0. What should you expect?</p>
+      <div class="panel" style="max-width:640px">
+        <button type="button" class="choice" data-q="4" data-a="0">The chord will teleport the way the direction chord does.</button>
+        <button type="button" class="choice" data-q="4" data-a="1">Spline and chord should look similar; curvature is not buying much.</button>
+        <button type="button" class="choice" data-q="4" data-a="2">You must use a periodic spline.</button>
+        <button type="button" class="choice" data-q="4" data-a="3">Speed cannot be steered because probes are only lie detectors.</button>
+        <p class="feedback" id="fb-4"></p>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · the speed control path</summary>
+<pre><code># Same evaluate_path(), kind="speed", natural (non-periodic) spline
+path = PathSpec(u0=label_to_u(0.5), u1=label_to_u(3.5), ...)
+# Result on this run:
+#   spline mid MAE ≈ 0.37 m/s
+#   chord  mid MAE ≈ 0.10 m/s   ← chord slightly better
+# Flat geometry ⇒ Euclidean interpolation is already right.</code></pre>
+      </details>
+    </section>
+
+    <!-- 13 THE KEY SLIDE -->
+    <section class="slide" data-id="13">
+      <span class="tag p2">The confusion you named</span>
+      <h2>Tube ≠ “the linear splits probes learn”</h2>
+      <div class="grid">
+        <div>
+          <p>A probe finds a <strong>direction to project onto</strong> (a lie-detector axis). Many orthogonal probes find many such axes. That is a <strong>subspace</strong>.</p>
+          <p>A <strong>tube</strong> is a claim about where the points <em>live</em>:</p>
+          <ul class="plain">
+            <li>There is a thin spine (the circle of angles).</li>
+            <li>For one fixed angle, activations are not one point. They form a blob around that point on the spine.</li>
+            <li>Moving along the spine changes the angle.</li>
+            <li>Moving inside the blob (perpendicular to the spine) mostly keeps the same angle.</li>
+          </ul>
+          <p>So:</p>
+          <ul class="plain">
+            <li><strong>Probe subspace</strong> = which directions you are allowed to edit to change the score.</li>
+            <li><strong>Tube</strong> = the solid neighborhood of activations around the concept curve.</li>
+          </ul>
+          <p>They can overlap. Part 1’s many probes often point somewhere inside the tube. But “82 probe dimensions” is not the definition of a tube. The tube is the cloud. The probes are rulers you hold up to the cloud.</p>
+        </div>
+        <div class="panel">
+          <div class="chips">
+            <button type="button" class="chip" data-geom="probe" aria-pressed="false">Show probe axis</button>
+            <button type="button" class="chip" data-geom="curve" aria-pressed="false">Show curve only</button>
+            <button type="button" class="chip" data-geom="tube" aria-pressed="true">Show tube</button>
+          </div>
+          <svg class="viz" id="tube-svg" viewBox="0 0 420 320" role="img" aria-label="Probe vs curve vs tube"></svg>
+          <label class="row">Step along
+            <input id="tube-t" type="range" min="0" max="1000" value="250">
+            <span id="tube-t-read">spine</span>
+          </label>
+          <div class="chips">
+            <button type="button" class="chip" data-move="spine" aria-pressed="true">Move on spine</button>
+            <button type="button" class="chip" data-move="fiber" aria-pressed="false">Move in fiber</button>
+          </div>
+          <p class="metric" id="tube-angle">—<span id="tube-explain">decoded angle</span></p>
+          <p class="caption" id="tube-cap">Amber ring = tube. Teal = spine. Moving on the spine changes θ. Moving in the fiber (across the ring) mostly does not.</p>
+        </div>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · <code>scripts/part2_tube.py</code> · <code>fit_tube_basis</code></summary>
+        <p class="why">Find nearest spine point, strip the tangent, PCA the leftover. Those PCs are the tube axes — not the same object as <code>probe.weight</code>.</p>
+<pre><code>Z = pca.transform(X_fit)
+u*, z*, T, _ = nearest_on_spline(Z, spline)   # T = unit tangent s'(u*)
+r = Z - z*
+r_perp = r - (r · T)[:, None] * T             # remove along-spine part
+
+# Tube basis = principal directions of the perpendicular cloud
+U, S, Vt = np.linalg.svd(r_perp - r_perp.mean(0), full_matrices=False)
+V_k = Vt[:k].T                                # (n_pca, k) normal coords
+
+# Steer: stay on spine, add a little tube to hit the probe target
+z(t) = s(u(t)) + t * (V_k @ c*)               # c* from lstsq like Part 1
+# k=0 → spline only; k=2 ≈ multi-probe n=20 at the endpoint</code></pre>
+      </details>
+    </section>
+
+    <!-- 14 -->
+    <section class="slide" data-id="14">
+      <span class="tag p2">What fills the tube?</span>
+      <h2>Same angle, different reasons to be off-spine</h2>
+      <div class="compare">
+        <div class="panel">
+          <h3>Fiber</h3>
+          <p>Many activations decode as the same θ. The probe score is flat across this slice. Like sliding perpendicular to <code>w</code> on the lie-detector slide — score unchanged.</p>
+        </div>
+        <div class="panel">
+          <h3>Nuisance</h3>
+          <p>Other properties live in the leftover directions. On these disks, <strong>speed</strong> is strongly readable from the tube directions, not from the angle spine.</p>
+        </div>
+        <div class="panel">
+          <h3>Copies</h3>
+          <p>Extra directions that still correlate with angle — Part 1’s redundant probes. They sit in the tubular neighborhood, but they are not always the same as “largest leftover variance” (which is often speed).</p>
+        </div>
+      </div>
+      <p style="margin-top:16px">That is why the writeups sound like they are contradicting themselves: direction is “1D” (you can walk a circle) and “high-D” (you need many probes / the cloud is thick). Both: 1D spine, thick neighborhood.</p>
+      <div class="panel" style="margin-top:12px">
+        <h3>Practical recipe this project landed on</h3>
+        <p>Walk the circle when you care about intermediate angles. Add ~2 directions in the tube when you need to nail a hard endpoint. That matches multi-probe’s endpoint accuracy without recreating the chord’s mid-path teleport.</p>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · <code>scripts/part2_tube_why.py</code></summary>
+        <p class="why">Three measurements on the same tube coordinates: fiber sensitivity, nuisance Ridge R², and overlap with Part 1 probes.</p>
+<pre><code># Fiber: step ε along tangent vs tube PC1, read frozen probe
+θ(ε) = atan2_deg(probe(decode(z0 + ε * v)))
+sens = |θ(+ε) - θ(-ε)| / (2ε)
+# tangent ≈ 8.8°/unit; tube PC1 ≈ 2.2°; PC2 ≈ 0.14°
+
+# Nuisance: Ridge R² of spine (sin u, cos u) vs tube PC1..10
+r2_spine["speed"] ≈ -0.01
+r2_tube10["speed"] ≈ 0.70      # speed lives in the thickness
+r2_tube10["theta"] ≈ -0.54    # tube alone cannot predict angle
+
+# Copies: Part 1 probe planes sit in tube-20 neighborhood,
+# but NOT aligned with top variance PCs (those are speed-ish).</code></pre>
+      </details>
+    </section>
+
+    <!-- 15 quiz -->
+    <section class="slide" data-id="15">
+      <span class="tag quiz">Exercise 5</span>
+      <h2>Pick the tube sentence</h2>
+      <p>Which statement uses “tube” correctly?</p>
+      <div class="panel" style="max-width:680px">
+        <button type="button" class="choice" data-q="5" data-a="0">A tube is what you get when a linear probe has two outputs (sin and cos).</button>
+        <button type="button" class="choice" data-q="5" data-a="1">A tube means activations for a concept form a thick neighborhood around a lower-dimensional spine; moving across the thickness need not change the concept.</button>
+        <button type="button" class="choice" data-q="5" data-a="2">A tube is another name for the nullspace of a probe.</button>
+        <button type="button" class="choice" data-q="5" data-a="3">A tube is the straight chord between two centroids.</button>
+        <p class="feedback" id="fb-5"></p>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · one line that is a tube, one that is not</summary>
+<pre><code># NOT a tube — this is a probe subspace:
+V, _ = qr(stack([p.weight.T for p in probes]))
+
+# A tube — residual neighborhood around the spline:
+r_perp = (Z - s(u*)) - proj_onto_tangent(...)
+V_tube = PCA(r_perp).components_</code></pre>
+      </details>
+    </section>
+
+    <!-- 16 quiz -->
+    <section class="slide" data-id="16">
+      <span class="tag quiz">Exercise 6</span>
+      <h2>Probe vs tube, one more time</h2>
+      <p>You have a perfect direction probe (score = angle). You also measure a thick tube around the angle circle. You move an activation <em>inside the tube at fixed angle</em>. What happens?</p>
+      <div class="panel" style="max-width:680px">
+        <button type="button" class="choice" data-q="6" data-a="0">The probe score must change, because any move in activation space changes every linear probe.</button>
+        <button type="button" class="choice" data-q="6" data-a="1">The probe score can stay roughly the same; the move is mostly invisible to a direction-only lie detector, while other properties (like speed) might change.</button>
+        <button type="button" class="choice" data-q="6" data-a="2">The activation necessarily leaves the model’s representation space.</button>
+        <button type="button" class="choice" data-q="6" data-a="3">You have proven the chord is better than the spline.</button>
+        <p class="feedback" id="fb-6"></p>
+      </div>
+      <details class="codebox">
+        <summary>Derive it · fiber move that a probe ignores</summary>
+<pre><code>z0 = spline(u_fixed)                 # e.g. 90° on the spine
+z1 = z0 + ε * tube_pc1               # step in the thickness
+
+score0 = probe(decode(z0))           # ≈ (sin 90°, cos 90°)
+score1 = probe(decode(z1))           # almost the same angle
+
+# But a speed probe on decode(z1) can move a lot —
+# that is "nuisance in the tube," invisible to the direction lie detector.</code></pre>
+      </details>
+    </section>
+
+    <!-- 17 -->
+    <section class="slide" data-id="17">
+      <span class="tag">Map</span>
+      <h2>How the experiments attach to the ideas</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:16px">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:8px 8px 8px 0;border-bottom:1px solid var(--line);font-family:Sora,sans-serif;font-size:13px">Experiment</th>
+            <th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);font-family:Sora,sans-serif;font-size:13px">Question in plain words</th>
+            <th style="text-align:left;padding:8px;border-bottom:1px solid var(--line);font-family:Sora,sans-serif;font-size:13px">Idea it uses</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding:8px 8px 8px 0;border-bottom:1px solid var(--line)">Layer probes</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">When can a lie detector read each property?</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">Probe</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 8px 8px 0;border-bottom:1px solid var(--line)">Nullspace</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">How many independent lie detectors work in a row?</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">Probe subspace / redundancy</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 8px 8px 0;border-bottom:1px solid var(--line)">Multi-probe steer</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">If I edit those axes, does a held-out detector agree?</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">Causal subspace edit</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 8px 8px 0;border-bottom:1px solid var(--line)">Spline vs chord</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">Do averages form a curve you should walk?</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">Manifold / curve</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 8px 8px 0;border-bottom:1px solid var(--line)">Pullback</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">If I only optimize the detector, do I stay on the curve?</td>
+            <td style="padding:8px;border-bottom:1px solid var(--line)">Curve vs fiber (here: leave the curve)</td>
+          </tr>
+          <tr>
+            <td style="padding:8px 8px 8px 0">Spine + tube steer</td>
+            <td style="padding:8px">Walk the curve, then use a little thickness to hit the endpoint</td>
+            <td style="padding:8px">Tube = spine + normal directions</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="margin-top:16px">When a writeup feels weird, ask which column it is talking about. Most confusion is mixing “detector axes” with “where the points live.”</p>
+      <details class="codebox">
+        <summary>Derive it · run order</summary>
+<pre><code># From a cold start (GPU), after data/ is in place:
+bash scripts/run_all.sh          # extract → layers → nullspace → steer
+
+# Then Part 2 on saved activations:
+python scripts/part2_splines.py --device cuda
+python scripts/part2_pullback.py --device cuda --kinds direction
+python scripts/part2_tube.py --device cuda
+python scripts/part2_tube_why.py --device cuda
+
+# Artifacts to re-read:
+#   artifacts/results/summary.json
+#   artifacts/results/part2_splines.json
+#   artifacts/results/part2_tube.json
+#   artifacts/results/tube_why_campaign.json</code></pre>
+      </details>
+    </section>
+
+    <!-- 18 -->
+    <section class="slide" data-id="18">
+      <span class="tag">Done</span>
+      <h2>What you should be able to say out loud</h2>
+      <ul class="plain">
+        <li>A <strong>probe</strong> is a linear lie detector: it projects activations onto one (or a few) directions.</li>
+        <li><strong>High probe dimensionality</strong> means many redundant detectors still work after you delete previous ones. It does not by itself mean “the concept is a tube.”</li>
+        <li>A <strong>manifold / spline</strong> is the path of average activations as the label changes. Steering mid-path should follow it when the concept is curved.</li>
+        <li>A <strong>tube</strong> means those averages are a spine, and real points form a thick neighborhood. Moving in the thickness can keep the concept fixed while changing something else (or nothing the probe cares about).</li>
+        <li>Direction in this project: curved spine + thick tube. Speed / acceleration: flat enough that a chord is fine.</li>
+      </ul>
+      <p class="lede" id="final-score">Finish the six exercises to fill this line.</p>
+      <p>Next reading, in order: <a href="explainer.html">Part 1 method sketch</a> → <a href="manifold_explainer.html">spline method sketch</a> → <a href="research_explainer.html">full research arc</a>. Come back here if a sentence stops making sense.</p>
+      <details class="codebox">
+        <summary>Derive it · minimal “re-derive one idea” snippets</summary>
+<pre><code># 1) Readability at one layer
+probe = train_probe_c11(X_L5_train, y_train, kind="direction")
+print(score_probe(probe, X_L5_val, y_val, kind="direction"))
+
+# 2) One nullspace step
+X2 = project_out(X, probe.weight)
+probe2 = train_probe_c11(X2[train], y_train, kind="direction")
+
+# 3) Walk 0° → 180° on the spline
+for t in np.linspace(0, 1, 21):
+    u = circular_lerp(0.0, 0.5, t)
+    X_t = leftover + pca.inverse_transform(spline(u))
+    print(t, atan2_deg(eval_probe(X_t)))
+
+# 4) Tube k=2 endpoint
+z = spline(0.5) + V_k[:, :2] @ c_star
+print(atan2_deg(eval_probe(leftover + pca.inverse_transform(z))))</code></pre>
+      </details>
+    </section>
+
+  </div>
+
+  <footer class="bot">
+    <button type="button" class="nav" id="prev">Back</button>
+    <span class="page" id="page">1 / 19</span>
+    <div class="spacer"></div>
+    <button type="button" class="nav primary" id="next">Next</button>
+  </footer>
+
+<script>
+const LAYERS = {
+  dir: [0.23,0.56,0.56,0.45,0.59,0.93,0.90,0.90,0.96,0.95,0.95,0.96,0.96,0.95,0.97,0.95,0.95,0.94,0.97,0.96,0.96,0.97,0.97,0.97],
+  spd: [0.80,0.83,0.84,0.85,0.84,0.95,0.94,0.95,0.96,0.94,0.94,0.93,0.94,0.94,0.96,0.95,0.95,0.94,0.95,0.96,0.95,0.97,0.96,0.96],
+  acc: [0.79,0.83,0.83,0.83,0.82,0.92,0.90,0.92,0.94,0.93,0.88,0.90,0.92,0.92,0.93,0.93,0.94,0.92,0.93,0.93,0.93,0.94,0.95,0.94]
+};
+const NULLS = {
+  dir: [0.75,0.89,0.74,0.75,0.65,0.40,0.48,0.49,0.38,0.42,0.28,0.51,0.52,0.24,0.36,0.53,0.26,0.42,0.31,0.44,0.42,0.23,0.16,0.19,0.57,0.23,0.13,0.30,0.25,0.18,0.18,0.21,0.20,0.40,0.14,0.31,0.27,0.11,0.12,0.36,0.21,0.07],
+  spd: [0.88,0.41,0.77,0.54,0.54,0.13],
+  acc: [0.52,0.44,0.04]
+};
+const STEER = [
+  [90.3, 19.2], [58.4, 38.1], [29.3, 65.9], [11.4, 82.3],
+  [10.8, 85.1], [12.8, 87.6], [6.3, 88.9], [4.4, 88.6]
+];
+const STEER_N = [0, 1, 2, 5, 10, 15, 20, 41];
+
+const ANSWERS = {
+  1: { i: 1, ok: "Yes. High R² means linear readability. It does not fix the geometry (curve vs cloud) or prove a unique edit direction.", bad: "A probe score is a function of the activation. Geometry and unique causal axes are separate claims." },
+  2: { i: 1, ok: "Emergence / chosen study layer is about where the concept becomes available and how it is organized. Later layers can still read it while the neighborhood around it changes.", bad: "Highest R² is not automatically the right place to intervene or to compare with the paper’s emergence story." },
+  3: { i: 1, ok: "Nullspace counts redundant linear readouts. It does not invent 40 physical concepts, and it does not by itself prove a circle.", bad: "Think “many copies of a readable feature,” not “many different features,” and not “must be a circle.”" },
+  4: { i: 1, ok: "Flat / low-dimensional variables are where linear interpolation already matches the concept path. That was the control in Part 2.", bad: "The dramatic chord failure is for curved concepts (direction half-turns). Speed is the boring case on purpose." },
+  5: { i: 1, ok: "Tube = thick neighborhood around a spine. Not a synonym for probe outputs, nullspaces, or chords.", bad: "Keep “detector axes” and “where points live” in separate mental buckets." },
+  6: { i: 1, ok: "That is the fiber picture: same probe score, different point. Other probes (speed) might move. This is exactly how a tube differs from “whatever the lie detector sees.”", bad: "Linear probes are blind to everything orthogonal to their weight. A tube fiber is that leftover direction(s)." }
+};
+
+const state = {
+  i: 0,
+  answered: {},
+  nullKind: "dir",
+  path: "spline",
+  geom: "tube",
+  move: "spine"
+};
+
+function $(id) { return document.getElementById(id); }
+function slides() { return [...document.querySelectorAll(".slide")]; }
+
+function show(i) {
+  const all = slides();
+  state.i = Math.max(0, Math.min(all.length - 1, i));
+  all.forEach((s, k) => s.classList.toggle("on", k === state.i));
+  $("page").textContent = (state.i + 1) + " / " + all.length;
+  $("bar").style.width = ((state.i) / (all.length - 1) * 100).toFixed(1) + "%";
+  $("prev").disabled = state.i === 0;
+  $("next").textContent = state.i === all.length - 1 ? "Restart" : "Next";
+  const id = all[state.i].dataset.id;
+  if (id === "1") drawSpace();
+  if (id === "2") drawProbe();
+  if (id === "4") drawLayers();
+  if (id === "6") drawNull();
+  if (id === "8") drawSteer();
+  if (id === "10") drawCent();
+  if (id === "11") drawWalk();
+  if (id === "13") drawTube();
+  if (id === "18") updateFinal();
+  window.scrollTo(0, 0);
+  all[state.i].scrollTop = 0;
+}
+
+function updateScore() {
+  const n = Object.keys(state.answered).length;
+  const right = Object.values(state.answered).filter(Boolean).length;
+  $("score").textContent = "Exercises " + n + " / 6" + (n ? " · " + right + " correct" : "");
+  updateFinal();
+}
+function updateFinal() {
+  const el = $("final-score");
+  if (!el) return;
+  const n = Object.keys(state.answered).length;
+  const right = Object.values(state.answered).filter(Boolean).length;
+  if (n < 6) el.textContent = "You have answered " + n + " of 6 exercises (" + right + " correct so far).";
+  else el.textContent = "Exercises done: " + right + " / 6 correct. Revisit any red ones; the explanations under them are the real lesson.";
+}
+
+function clearSvg(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+function el(name, attrs, text) {
+  const n = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function drawSpace() {
+  const svg = $("space-svg");
+  clearSvg(svg);
+  const L = +$("space-layer").value;
+  $("space-layer-read").textContent = L;
+  const sep = Math.min(1, L / 5);
+  for (let i = 0; i < 48; i++) {
+    const a = (i / 48) * Math.PI * 2;
+    const jitter = (1 - sep) * 40;
+    const cx = 210 + Math.cos(a) * (70 * sep + 10) + (Math.sin(i * 12.3) * jitter);
+    const cy = 150 + Math.sin(a) * (70 * sep + 10) + (Math.cos(i * 9.1) * jitter);
+    const hue = (a / (Math.PI * 2)) * 360;
+    svg.appendChild(el("circle", { cx, cy, r: 5, fill: `hsl(${hue} 65% 42%)`, opacity: 0.85 }));
+  }
+  svg.appendChild(el("text", { x: 16, y: 24, "font-family": "Sora, sans-serif", "font-size": 12, fill: "#3a4c54" }, "toy 2D view · color = direction"));
+}
+
+function drawProbe() {
+  const svg = $("probe-svg");
+  clearSvg(svg);
+  const t = +$("probe-t").value / 1000;
+  $("probe-t-read").textContent = t.toFixed(2);
+  // base point along a perpendicular line, then optional slide along w
+  const along = (t - 0.5) * 160;
+  const perp = Math.sin(t * Math.PI * 2) * 70;
+  const wx = 1, wy = 0.35;
+  const wn = Math.hypot(wx, wy);
+  const ux = wx / wn, uy = wy / wn;
+  const px = -uy, py = ux;
+  const cx = 210 + ux * along + px * perp;
+  const cy = 150 + uy * along + py * perp;
+  // dashed perpendicular through origin of plot
+  svg.appendChild(el("line", { x1: 210 + px * 110, y1: 150 + py * 110, x2: 210 - px * 110, y2: 150 - py * 110, stroke: "#b9c7cc", "stroke-dasharray": "5 4", "stroke-width": 2 }));
+  // probe arrow
+  svg.appendChild(el("line", { x1: 210 - ux * 120, y1: 150 - uy * 120, x2: 210 + ux * 120, y2: 150 + uy * 120, stroke: "#1d4ed8", "stroke-width": 3 }));
+  // projection foot
+  const score = (cx - 210) * ux + (cy - 150) * uy;
+  const fx = 210 + ux * score, fy = 150 + uy * score;
+  svg.appendChild(el("line", { x1: cx, y1: cy, x2: fx, y2: fy, stroke: "#9f1239", "stroke-width": 1.5, "stroke-dasharray": "3 3" }));
+  svg.appendChild(el("circle", { cx: fx, cy: fy, r: 4, fill: "#9f1239" }));
+  svg.appendChild(el("circle", { cx, cy, r: 7, fill: "#142028", stroke: "#fff", "stroke-width": 2 }));
+  svg.appendChild(el("text", { x: 16, y: 24, "font-family": "Sora, sans-serif", "font-size": 12, fill: "#3a4c54" }, "blue = probe axis w"));
+  $("probe-score").firstChild.textContent = (score / 80).toFixed(2);
+}
+
+function drawLayers() {
+  const svg = $("layer-svg");
+  clearSvg(svg);
+  const L = +$("layer-t").value;
+  $("layer-t-read").textContent = L;
+  const X0 = 36, X1 = 400, Y0 = 24, Y1 = 210;
+  const x = i => X0 + i / 23 * (X1 - X0);
+  const y = r => Y1 - r * (Y1 - Y0);
+  svg.appendChild(el("line", { x1: X0, y1: Y1, x2: X1, y2: Y1, stroke: "#b9c7cc" }));
+  [["spd", "#0f766e"], ["acc", "#9f1239"], ["dir", "#1d4ed8"]].forEach(([k, c]) => {
+    const pts = LAYERS[k].map((r, i) => `${x(i)},${y(r)}`).join(" ");
+    svg.appendChild(el("polyline", { points: pts, fill: "none", stroke: c, "stroke-width": k === "dir" ? 2.6 : 2.1 }));
+  });
+  svg.appendChild(el("line", { x1: x(L), y1: Y0, x2: x(L), y2: Y1, stroke: "#142028", "stroke-width": 1.2 }));
+  $("layer-readout").innerHTML = [
+    ["Direction", LAYERS.dir[L], "#1d4ed8"],
+    ["Speed", LAYERS.spd[L], "#0f766e"],
+    ["Accel", LAYERS.acc[L], "#9f1239"]
+  ].map(([n, r, c]) => `<p class="metric" style="color:${c}">${r.toFixed(2)}<span>${n}</span></p>`).join("");
+}
+
+function drawNull() {
+  const series = NULLS[state.nullKind];
+  const svg = $("null-svg");
+  clearSvg(svg);
+  const max = series.length - 1;
+  $("null-k").max = max;
+  if (+$("null-k").value > max) $("null-k").value = max;
+  const k = +$("null-k").value;
+  $("null-k-read").textContent = k;
+  const X0 = 36, X1 = 400, Y0 = 20, Y1 = 200;
+  const x = i => X0 + (max ? i / max : 0) * (X1 - X0);
+  const y = r => Y1 - Math.max(0, r) * (Y1 - Y0);
+  const color = state.nullKind === "dir" ? "#1d4ed8" : state.nullKind === "spd" ? "#0f766e" : "#9f1239";
+  const pts = series.map((r, i) => `${x(i)},${y(r)}`).join(" ");
+  svg.appendChild(el("polyline", { points: pts, fill: "none", stroke: color, "stroke-width": 2.4 }));
+  series.forEach((r, i) => svg.appendChild(el("circle", { cx: x(i), cy: y(r), r: i === k ? 5 : 2.5, fill: color })));
+  $("null-note").textContent = state.nullKind === "dir"
+    ? "Direction keeps recovering — many redundant detectors. Open the iteration slider."
+    : state.nullKind === "spd"
+      ? "Speed collapses in a handful of iterations."
+      : "Acceleration is basically gone by iteration 2.";
+}
+
+function drawSteer() {
+  const svg = $("steer-svg");
+  clearSvg(svg);
+  const idx = +$("steer-n").value;
+  const n = STEER_N[idx];
+  $("steer-n-read").textContent = String(n);
+  const [toT, toR] = STEER[idx];
+  $("steer-tgt").childNodes[0].textContent = toT.toFixed(1) + "°";
+  $("steer-tru").childNodes[0].textContent = toR.toFixed(1) + "°";
+  const ang = (90 - toT) * Math.PI / 180;
+  svg.appendChild(el("circle", { cx: 210, cy: 130, r: 78, fill: "none", stroke: "#b9c7cc", "stroke-width": 10 }));
+  svg.appendChild(el("line", { x1: 210, y1: 130, x2: 210, y2: 52, stroke: "#3a4c54", "stroke-width": 3 }));
+  svg.appendChild(el("line", { x1: 210, y1: 130, x2: 210 + 78 * Math.cos(ang), y2: 130 - 78 * Math.sin(ang), stroke: "#1d4ed8", "stroke-width": 3 }));
+  svg.appendChild(el("circle", { cx: 210, cy: 130, r: 5, fill: "#142028" }));
+  svg.appendChild(el("text", { x: 16, y: 24, "font-family": "Sora, sans-serif", "font-size": 12, fill: "#3a4c54" }, "target 90° (gray) · readout (blue)"));
+}
+
+function drawCent() {
+  const svg = $("cent-svg");
+  clearSvg(svg);
+  const cloud = +$("cent-cloud").value / 1000;
+  $("cent-cloud-read").textContent = cloud < 0.05 ? "off" : cloud.toFixed(2);
+  const pts = [];
+  for (let i = 0; i <= 64; i++) {
+    const a = -Math.PI / 2 + i / 64 * Math.PI * 2;
+    pts.push([210 + Math.cos(a) * 90, 155 + Math.sin(a) * 90]);
+  }
+  svg.appendChild(el("polyline", { points: pts.map(p => p.join(",")).join(" "), fill: "none", stroke: "#0f766e", "stroke-width": 2.5 }));
+  if (cloud > 0) {
+    for (let i = 0; i < 64; i++) {
+      const a = -Math.PI / 2 + i / 64 * Math.PI * 2;
+      for (let j = 0; j < 3; j++) {
+        const rr = 90 + (Math.sin(i * 3.1 + j) * 28 * cloud);
+        const aa = a + Math.cos(i * 2.7 + j) * 0.12 * cloud;
+        svg.appendChild(el("circle", {
+          cx: 210 + Math.cos(aa) * rr,
+          cy: 155 + Math.sin(aa) * rr,
+          r: 2.2,
+          fill: "#b45309",
+          opacity: 0.35 + 0.4 * cloud
+        }));
+      }
+    }
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = -Math.PI / 2 + i / 12 * Math.PI * 2;
+    svg.appendChild(el("circle", { cx: 210 + Math.cos(a) * 90, cy: 155 + Math.sin(a) * 90, r: 4, fill: "#142028" }));
+  }
+  svg.appendChild(el("text", { x: 16, y: 24, "font-family": "Sora, sans-serif", "font-size": 12, fill: "#3a4c54" }, "centroids on a circle · cloud = real scatter"));
+}
+
+function drawWalk() {
+  const svg = $("walk-svg");
+  clearSvg(svg);
+  const t = +$("walk-t").value / 1000;
+  $("walk-t-read").textContent = t.toFixed(2);
+  const a0 = -Math.PI / 2;
+  const a1 = Math.PI / 2;
+  const pts = [];
+  for (let i = 0; i <= 48; i++) {
+    const a = a0 + (a1 - a0) * (i / 48);
+    pts.push([210 + Math.cos(a) * 95, 150 + Math.sin(a) * 95]);
+  }
+  svg.appendChild(el("polyline", { points: pts.map(p => p.join(",")).join(" "), fill: "none", stroke: "#0f766e", "stroke-width": 2.5 }));
+  const x0 = 210 + Math.cos(a0) * 95, y0 = 150 + Math.sin(a0) * 95;
+  const x1 = 210 + Math.cos(a1) * 95, y1 = 150 + Math.sin(a1) * 95;
+  svg.appendChild(el("line", { x1: x0, y1: y0, x2: x1, y2: y1, stroke: "#9f1239", "stroke-width": 2, "stroke-dasharray": "5 4" }));
+  let wx, wy, ang;
+  if (state.path === "spline") {
+    const a = a0 + (a1 - a0) * t;
+    wx = 210 + Math.cos(a) * 95;
+    wy = 150 + Math.sin(a) * 95;
+    ang = ((a + Math.PI / 2) / (Math.PI * 2) * 360 + 360) % 360;
+  } else {
+    wx = x0 + (x1 - x0) * t;
+    wy = y0 + (y1 - y0) * t;
+    // toy: angle from center; at mid radius ~0 so angle unstable
+    const dx = wx - 210, dy = wy - 150;
+    if (Math.hypot(dx, dy) < 8) ang = null;
+    else ang = (Math.atan2(dy, dx) + Math.PI / 2) * 180 / Math.PI;
+    if (ang != null) ang = (ang + 360) % 360;
+  }
+  svg.appendChild(el("circle", { cx: wx, cy: wy, r: 7, fill: state.path === "spline" ? "#0f766e" : "#9f1239", stroke: "#fff", "stroke-width": 2 }));
+  if (ang == null) {
+    $("walk-angle").childNodes[0].textContent = "???";
+    $("walk-note").textContent = "inside the circle — no stable angle";
+  } else {
+    $("walk-angle").childNodes[0].textContent = ang.toFixed(0) + "°";
+    $("walk-note").textContent = state.path === "spline" ? "on-manifold decode" : "chord decode (toy)";
+  }
+}
+
+function drawTube() {
+  const svg = $("tube-svg");
+  clearSvg(svg);
+  const t = +$("tube-t").value / 1000;
+  // spine circle
+  if (state.geom !== "probe") {
+    if (state.geom === "tube") {
+      svg.appendChild(el("circle", { cx: 210, cy: 160, r: 88, fill: "#f3e0c4", stroke: "#b45309", "stroke-width": 18, "fill-opacity": 0.35 }));
+    }
+    svg.appendChild(el("circle", { cx: 210, cy: 160, r: 88, fill: "none", stroke: "#0f766e", "stroke-width": 3 }));
+  }
+  // probe axis through center (lie detector cartoon)
+  if (state.geom === "probe") {
+    svg.appendChild(el("line", { x1: 60, y1: 160, x2: 360, y2: 160, stroke: "#1d4ed8", "stroke-width": 3 }));
+    svg.appendChild(el("text", { x: 16, y: 28, "font-family": "Sora, sans-serif", "font-size": 12, fill: "#1d4ed8" }, "one probe axis (projection)"));
+    for (let i = 0; i < 20; i++) {
+      svg.appendChild(el("circle", {
+        cx: 100 + i * 12,
+        cy: 160 + Math.sin(i * 1.7) * 40,
+        r: 4,
+        fill: "#142028",
+        opacity: 0.55
+      }));
+    }
+    $("tube-angle").childNodes[0].textContent = "score only";
+    $("tube-explain").textContent = "points off the axis can share a score";
+    $("tube-cap").textContent = "A probe is a ruler. It does not draw the cloud.";
+    $("tube-t-read").textContent = "—";
+    return;
+  }
+  const a = -Math.PI / 2 + t * Math.PI * 2;
+  let wx, wy, ang;
+  if (state.move === "spine") {
+    wx = 210 + Math.cos(a) * 88;
+    wy = 160 + Math.sin(a) * 88;
+    ang = (t * 360) % 360;
+    $("tube-t-read").textContent = "spine";
+    $("tube-cap").textContent = "Moving on the spine changes decoded angle. This is the manifold walk.";
+  } else {
+    const rad = 70 + t * 36;
+    wx = 210 + Math.cos(-Math.PI / 2) * rad;
+    wy = 160 + Math.sin(-Math.PI / 2) * rad;
+    ang = 0;
+    $("tube-t-read").textContent = "fiber";
+    $("tube-cap").textContent = "Moving in the fiber (thickness at fixed angle) keeps θ ≈ 0°. A direction probe barely notices; speed might.";
+  }
+  svg.appendChild(el("circle", { cx: wx, cy: wy, r: 7, fill: "#142028", stroke: "#fff", "stroke-width": 2 }));
+  svg.appendChild(el("text", { x: 16, y: 28, "font-family": "Sora, sans-serif", "font-size": 12, fill: "#3a4c54" },
+    state.geom === "curve" ? "spine only (idealized)" : "spine + tube (activations)"));
+  $("tube-angle").childNodes[0].textContent = ang.toFixed(0) + "°";
+  $("tube-explain").textContent = "toy decoded angle";
+}
+
+// events
+$("prev").addEventListener("click", () => show(state.i - 1));
+$("next").addEventListener("click", () => {
+  if (state.i === slides().length - 1) show(0);
+  else show(state.i + 1);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); $("next").click(); }
+  if (e.key === "ArrowLeft") { e.preventDefault(); $("prev").click(); }
+});
+
+$("space-layer").addEventListener("input", drawSpace);
+$("probe-t").addEventListener("input", drawProbe);
+$("layer-t").addEventListener("input", drawLayers);
+$("null-k").addEventListener("input", drawNull);
+document.querySelectorAll("[data-null]").forEach(btn => btn.addEventListener("click", () => {
+  state.nullKind = btn.dataset.null;
+  document.querySelectorAll("[data-null]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+  $("null-k").value = 0;
+  drawNull();
+}));
+$("steer-n").addEventListener("input", drawSteer);
+$("cent-cloud").addEventListener("input", drawCent);
+$("walk-t").addEventListener("input", drawWalk);
+document.querySelectorAll("[data-path]").forEach(btn => btn.addEventListener("click", () => {
+  state.path = btn.dataset.path;
+  document.querySelectorAll("[data-path]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+  drawWalk();
+}));
+$("tube-t").addEventListener("input", drawTube);
+document.querySelectorAll("[data-geom]").forEach(btn => btn.addEventListener("click", () => {
+  state.geom = btn.dataset.geom;
+  document.querySelectorAll("[data-geom]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+  drawTube();
+}));
+document.querySelectorAll("[data-move]").forEach(btn => btn.addEventListener("click", () => {
+  state.move = btn.dataset.move;
+  document.querySelectorAll("[data-move]").forEach(b => b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+  drawTube();
+}));
+
+document.querySelectorAll("button.choice").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const q = btn.dataset.q;
+    if (state.answered[q] != null) return;
+    const ans = ANSWERS[q];
+    const ok = +btn.dataset.a === ans.i;
+    state.answered[q] = ok;
+    const group = [...document.querySelectorAll(`button.choice[data-q="${q}"]`)];
+    group.forEach(b => {
+      b.disabled = true;
+      if (+b.dataset.a === ans.i) b.classList.add("correct");
+      if (b === btn && !ok) b.classList.add("wrong");
+    });
+    const fb = $("fb-" + q);
+    fb.textContent = ok ? ans.ok : ans.bad;
+    fb.className = "feedback " + (ok ? "ok" : "bad");
+    updateScore();
+  });
+});
+
+$("code-toggle").addEventListener("click", () => {
+  const on = $("code-toggle").getAttribute("aria-pressed") !== "true";
+  $("code-toggle").setAttribute("aria-pressed", on ? "true" : "false");
+  $("code-toggle").textContent = on ? "Collapse all code" : "Expand all code";
+  document.querySelectorAll("details.codebox").forEach(d => { d.open = on; });
+});
+
+show(0);
+updateScore();
+</script>
+</body>
+</html>

@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What multi-probe steering actually does</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,460;0,7..72,650;1,7..72,460&family=Sora:wght@420;560;680&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #142028;
+    --mute: #3a4c54;
+    --field: #dfe8ea;
+    --sheet: #f4f8f9;
+    --line: #b9c7cc;
+    --probe: #1d4ed8;
+    --eval: #0f766e;
+    --edit: #9f1239;
+    --keep: #b45309;
+    --ok: #0f766e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    font-family: Literata, "Iowan Old Style", Palatino, serif;
+    font-size: 18px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 22px 80px; }
+  h1, h2, h3, .ui {
+    font-family: Sora, "Avenir Next", sans-serif;
+    font-weight: 560;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+  h1 { font-size: 34px; margin: 0 0 10px; max-width: 18ch; }
+  h2 { font-size: 22px; margin: 0 0 8px; }
+  h3 { font-size: 15px; margin: 0 0 6px; color: var(--mute); }
+  p { margin: 0 0 12px; max-width: 64ch; }
+  .lede { font-size: 20px; color: var(--mute); max-width: 46ch; }
+  a { color: var(--probe); }
+  .mute { color: var(--mute); }
+  .hero {
+    display: grid;
+    grid-template-columns: 0.95fr 1.05fr;
+    gap: 24px;
+    align-items: end;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 22px;
+  }
+  .panel {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 14px;
+  }
+  .stage {
+    background: #fff;
+    border: 1px solid var(--line);
+    padding: 10px;
+  }
+  svg.viz { width: 100%; height: auto; display: block; }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin: 14px 0 18px;
+  }
+  .steps button {
+    font-family: Sora, sans-serif;
+    font-size: 12px;
+    text-align: left;
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 10px 10px;
+    cursor: pointer;
+    min-height: 74px;
+  }
+  .steps button[aria-current="true"] {
+    background: var(--ink);
+    color: var(--sheet);
+    border-color: var(--ink);
+  }
+  .steps button span {
+    display: block;
+    font-size: 11px;
+    color: inherit;
+    opacity: 0.7;
+    margin-bottom: 4px;
+  }
+  .qa { margin-top: 28px; }
+  .qa details {
+    border-bottom: 1px solid var(--line);
+    padding: 12px 0;
+  }
+  .qa summary {
+    cursor: pointer;
+    font-family: Sora, sans-serif;
+    font-size: 16px;
+    font-weight: 560;
+  }
+  .qa details p { margin-top: 8px; }
+  label.row {
+    display: grid;
+    grid-template-columns: 120px 1fr 56px;
+    gap: 10px;
+    align-items: center;
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    margin: 8px 0;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--ink); }
+  .readout {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .metric {
+    font-family: Sora, sans-serif;
+    font-size: 22px;
+    font-weight: 680;
+    letter-spacing: -0.04em;
+    margin: 0;
+  }
+  .metric span { display: block; font-size: 12px; font-weight: 420; color: var(--mute); }
+  .formula {
+    font-family: Sora, sans-serif;
+    font-size: 15px;
+    background: #fff;
+    border: 1px solid var(--line);
+    padding: 10px 12px;
+    margin: 0 0 10px;
+  }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 12px 16px;
+    font-family: Sora, sans-serif; font-size: 12px; margin-top: 8px;
+  }
+  .swatch { display: inline-block; width: 14px; height: 3px; margin-right: 6px; vertical-align: middle; }
+  .caption {
+    font-family: Sora, sans-serif;
+    font-size: 12.5px;
+    color: var(--mute);
+    margin: 8px 0 0;
+    max-width: none;
+  }
+  pre {
+    background: #142028;
+    color: #e7eef0;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.45;
+    margin: 10px 0 0;
+  }
+  .story {
+    min-height: 7.5em;
+    max-width: none;
+  }
+  @media (max-width: 860px) {
+    .hero, .steps { grid-template-columns: 1fr; }
+    .steps button { min-height: 0; }
+    h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <p class="mute ui" style="margin:0 0 8px;font-family:Sora,sans-serif;font-size:13px">Part 1 · multi-probe steering</p>
+      <h1>Edit only the direction subspace, then ask a second probe</h1>
+      <p class="lede">Steering is not “retrain the model.” It is: rewrite a few coordinates of one activation vector so the direction detectors all say 90°, leave the rest of the vector alone, and check whether an independent detector agrees.</p>
+    </div>
+    <div class="panel">
+      <h3>Cast of characters</h3>
+      <p style="margin:0;max-width:none"><strong style="color:var(--probe)">Training probes</strong> — the lie detectors fit on train. Their weight arrows define the subspace we are allowed to edit.</p>
+      <p style="margin:8px 0 0;max-width:none"><strong style="color:var(--edit)">Edited activation x*</strong> — the same clip’s vector after we rewrite those coordinates.</p>
+      <p style="margin:8px 0 0;max-width:none"><strong style="color:var(--eval)">Evaluation probe</strong> — a fresh lie detector fit only on unsteered test. The witness. It never helped build the edit.</p>
+      <p style="margin:8px 0 0;max-width:none"><strong style="color:var(--keep)">Orthogonal leftover</strong> — everything about the clip that is not in the direction subspace (start position, speed residue, …). We do not touch it.</p>
+    </div>
+  </header>
+
+  <div class="steps" role="tablist" aria-label="Steering steps">
+    <button type="button" data-step="0" aria-current="true"><span>Step 1</span>One clip is a point</button>
+    <button type="button" data-step="1"><span>Step 2</span>Build a subspace from probes</button>
+    <button type="button" data-step="2"><span>Step 3</span>Split x into “editable” + “leave alone”</button>
+    <button type="button" data-step="3"><span>Step 4</span>Replace coords so probes say 90°</button>
+    <button type="button" data-step="4"><span>Step 5</span>Ask the second probe</button>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1.15fr 0.85fr;gap:20px;align-items:start" class="main">
+    <div class="stage">
+      <svg class="viz" id="viz" viewBox="0 0 640 420" role="img" aria-labelledby="viz-title"></svg>
+      <div class="legend">
+        <span><i class="swatch" style="background:#1d4ed8"></i>Training probe axes</span>
+        <span><i class="swatch" style="background:#b45309;height:10px;width:10px;border-radius:2px"></i>Subspace (editable plane)</span>
+        <span><i class="swatch" style="background:#9f1239"></i>Edit / x*</span>
+        <span><i class="swatch" style="background:#0f766e"></i>Eval probe readout</span>
+        <span><i class="swatch" style="background:#142028;height:8px;width:8px;border-radius:50%"></i>Original x</span>
+      </div>
+      <label class="row">How many training probes
+        <input id="n" type="range" min="1" max="8" value="1">
+        <span id="n-read">1</span>
+      </label>
+      <div class="readout">
+        <p class="metric" id="m-train">—<span>training probes say</span></p>
+        <p class="metric" id="m-eval">—<span>eval probe says</span></p>
+        <p class="metric" id="m-err">—<span>error to target 90°</span></p>
+      </div>
+      <p class="caption" id="cap">Toy 2D stand-in for 1024-D. Real direction probes have 2 rows each (sin, cos), so n probes span up to 2n axes. Here each “probe” is one axis so you can see the subspace grow.</p>
+    </div>
+
+    <div class="panel">
+      <h2 id="step-title">One clip is a point</h2>
+      <p class="story" id="story"></p>
+      <div class="formula" id="formula"></div>
+      <pre id="code"></pre>
+    </div>
+  </div>
+
+  <section class="qa">
+    <h2>Your questions, answered</h2>
+
+    <details open>
+      <summary>What does it mean to build a subspace?</summary>
+      <p>Each training probe has a weight matrix. For direction that weight is <code>2 × 1024</code> — two arrows in activation space (roughly “sine axis” and “cosine axis”). Stack the arrows from the first <code>n</code> probes and orthonormalize them with QR. The span of those arrows is the <strong>subspace</strong>: the set of all vectors you can write as a linear combination of them.</p>
+      <p>Think of it as declaring: “these are the only directions we are allowed to change when we steer.” With <code>n = 1</code> you get a thin editable set (about 2 axes). With <code>n = 20</code> you get a fatter editable set (about 40 axes). Everything not in that span is off-limits for this edit.</p>
+    </details>
+
+    <details>
+      <summary>What does it mean to replace the coordinates?</summary>
+      <p>Any activation <code>x</code> can be written as</p>
+      <p class="formula">x = V c + x⊥</p>
+      <p>where <code>V</code> is an orthonormal basis for the subspace, <code>c = Vᵀ x</code> are the coordinates <em>inside</em> the subspace, and <code>x⊥ = x − V c</code> is the leftover. “Replace the coordinates” means: keep <code>x⊥</code>, throw away the old <code>c</code>, and pick a new <code>c*</code>. The steered vector is</p>
+      <p class="formula">x* = V c* + x⊥</p>
+      <p>Only the part that lived in the probe subspace moves. The rest of the clip’s fingerprint stays put.</p>
+    </details>
+
+    <details>
+      <summary>Why make the training probes all output the same target angle?</summary>
+      <p>We need a concrete definition of “point this clip toward 90°.” The training probes are our operational definition of “direction” — they are the rulers we already trust on the train set. So we solve for <code>c*</code> such that <em>every included training probe</em> reads <code>(sin 90°, cos 90°) = (1, 0)</code> on <code>x*</code>.</p>
+      <p>If you only constrained one probe, the others could still say something else. Direction is stored redundantly; forcing one copy does not force the others. Requiring all <code>n</code> probes to agree on 90° is how you coordinate the copies.</p>
+      <p>90° is arbitrary. The paper (and this project) pick one fixed target for every test clip so the plot is “error to target vs number of probes,” not a mess of different targets.</p>
+    </details>
+
+    <details>
+      <summary>Why leave everything orthogonal to the subspace alone?</summary>
+      <p>Because that leftover is how the clip differs from other clips <em>in ways that are not direction</em> — start position, speed residue, motion type, random encoder fluff. If you zeroed the whole vector or replaced all 1024 coordinates, you would not be “steering direction”; you would be replacing the clip with a generic 90° template.</p>
+      <p>Leaving <code>x⊥</code> alone is the surgical claim: <em>only rewrite the direction-related part.</em> It is also why a held-out eval probe is a fair test — the clip is still recognizably itself, just with its direction dial turned.</p>
+    </details>
+
+    <details>
+      <summary>Why read the steered vector with a second probe?</summary>
+      <p>If you only checked the training probes, the result would be circular: you solved an equation so those probes say 90°, then congratulated yourself that they say 90°. That only proves the least-squares solve worked.</p>
+      <p>The <strong>evaluation probe</strong> is fit on unsteered test activations and then frozen. It never saw the steering probes, never saw a steered vector during training. When <em>it</em> also moves toward 90°, you have evidence that you edited a real shared direction feature — not just overfit the training rulers.</p>
+      <p>The causal signature: as you use more probes, <strong>error to 90° falls</strong> and <strong>error to the clip’s true angle rises</strong>. You are overwriting the original direction.</p>
+    </details>
+
+    <details>
+      <summary>Why does the number of probes matter? What does “multiple probes” mean?</summary>
+      <p><strong>Multiple probes</strong> means: take the first <code>n</code> probes from the nullspace sequence (the ones you fit before projecting each out), and use all of their weight axes together as the editable subspace.</p>
+      <p>With <code>n = 1</code>, you edit a small set of axes. Direction still has dozens of other copies outside that set, so the eval probe (which mixes those copies) barely moves — here, still ~58° from 90°.</p>
+      <p>With <code>n = 5</code> or <code>n = 20</code>, you drag more and more redundant copies into the edit. The eval probe has nowhere left to read the old angle from, so it swings toward 90° (~11° then ~6° on this project’s data).</p>
+      <p>So “more probes” is not “more physical concepts.” It is “a larger editable neighborhood of the same concept,” big enough that a second detector cannot ignore the edit.</p>
+    </details>
+  </section>
+
+  <p class="mute" style="margin-top:28px;font-size:15px">Toy geometry above; real solve is in <code>scripts/steer.py</code>. Back to the concept deck: <a href="concept_slideshow.html">concept_slideshow.html</a>.</p>
+</div>
+
+<script>
+const STEPS = [
+  {
+    title: "One clip is a point",
+    story: "Take one test video. Run the frozen encoder. At layer 5, mean-pool to a single vector x in 1024-D. That point already has some true heading — say 20°. We have not edited anything yet.",
+    formula: "x ∈ ℝ¹⁰²⁴  (here drawn as a point in 2D)",
+    code: `# X_test[i] is already saved from extract_activations.py
+x = X_test[i]          # shape (1024,)
+true_angle = y_test[i] # e.g. 20°`
+  },
+  {
+    title: "Build a subspace from training probes",
+    story: "Earlier, on the train set only, we fit many direction probes and projected each out (nullspace). Take the first n of those probes. Stack their weight rows and QR-orthonormalize. The span of those columns is the subspace V — the only directions we will be allowed to change.",
+    formula: "M = [W₁ᵀ | W₂ᵀ | … | Wₙᵀ] →  V = orth(M)",
+    code: `M = torch.cat([p.weight.T for p in probes[:n]], dim=1)
+V, _ = torch.linalg.qr(M, mode="reduced")
+# V's columns = editable axes ("the subspace")`
+  },
+  {
+    title: "Split x into editable + leave-alone",
+    story: "Project x onto V to get the part that lives in the direction subspace. Subtract that to get x⊥ — everything about this clip that is not in those probe axes. Steering will keep x⊥ exactly.",
+    formula: "c = Vᵀ x ,   x⊥ = x − V c ,   x = V c + x⊥",
+    code: `c = V.T @ x
+x_perp = x - V @ c
+# x_perp: start position, speed residue, ... — do not touch`
+  },
+  {
+    title: "Replace coordinates so every training probe says 90°",
+    story: "Solve for new coordinates c* inside the subspace such that each of the n training probes, on x* = V c* + x⊥, outputs (sin 90°, cos 90°). Same target for every clip. Old c is discarded; x⊥ stays.",
+    formula: "find c* s.t.  Wₖ (V c* + x⊥) + bₖ = (1, 0)  for all k ≤ n",
+    code: `t = [sin(90°), cos(90°)]  # = (1, 0)
+# least squares over all n probes:
+#   (W @ V) c* = t - b - W @ x_perp
+c_star = lstsq(...)
+x_star = V @ c_star + x_perp`
+  },
+  {
+    title: "Ask a second probe that did not build the edit",
+    story: "Fit an evaluation probe on unsteered test activations only, then freeze it. Read x* with that probe. If error to 90° falls as n grows (and error to the true angle rises), the edit transferred — you changed direction, not just the training rulers.",
+    formula: "θ̂ = atan2(eval(x*))   →   report MAE(θ̂, 90°) and MAE(θ̂, true)",
+    code: `eval_probe = train_on(X_test_unsteered)  # never sees x*
+pred = eval_probe(x_star)
+# n=1  → still ~58° from 90°
+# n=20 → ~6° from 90°  (this project)`
+  }
+];
+
+// Toy physics:
+// True angle of the clip
+const TRUE = 20;
+const TARGET = 90;
+// Probe axes as angles in the plane (degrees). More probes = more axes spanning a fatter subspace.
+// In reality each probe is 2D; here 1 axis per probe for clarity.
+function probeAxes(n) {
+  // spread axes around the "direction-sensitive" region
+  const base = [15, 50, 85, 120, 155, 190, 225, 260];
+  return base.slice(0, n).map(a => a * Math.PI / 180);
+}
+
+function angVec(a) { return [Math.cos(a), Math.sin(a)]; }
+
+// Original x: mostly along true angle, plus a leftover orthogonal component
+function originalX() {
+  const t = TRUE * Math.PI / 180;
+  const along = angVec(t);
+  const perp = [-along[1], along[0]];
+  // leftover magnitude — "identity" of the clip
+  return [
+    along[0] * 1.15 + perp[0] * 0.85,
+    along[1] * 1.15 + perp[1] * 0.85
+  ];
+}
+
+function orthonormalize(axes) {
+  // Gram-Schmidt on 2D — returns up to 2 basis vectors (plane is 2D!)
+  // For the toy: when n=1, 1D subspace; when n>=2, the whole plane is editable.
+  // That's actually pedagogically perfect for "more probes fill the space."
+  const basis = [];
+  for (const a of axes) {
+    let v = angVec(a);
+    for (const b of basis) {
+      const dot = v[0]*b[0] + v[1]*b[1];
+      v = [v[0]-dot*b[0], v[1]-dot*b[1]];
+    }
+    const n = Math.hypot(v[0], v[1]);
+    if (n > 1e-6) basis.push([v[0]/n, v[1]/n]);
+    if (basis.length === 2) break;
+  }
+  return basis;
+}
+
+function project(x, V) {
+  // V: list of orthonormal cols
+  let c = [];
+  let parallel = [0, 0];
+  for (const v of V) {
+    const ci = x[0]*v[0] + x[1]*v[1];
+    c.push(ci);
+    parallel[0] += ci * v[0];
+    parallel[1] += ci * v[1];
+  }
+  const perp = [x[0]-parallel[0], x[1]-parallel[1]];
+  return { c, parallel, perp };
+}
+
+function steerToy(x, V, n) {
+  // Target direction unit vector at 90°
+  const targetDir = angVec(TARGET * Math.PI / 180);
+  const { perp } = project(x, V);
+  if (V.length === 0) return { xStar: x.slice(), trainRead: TRUE, evalRead: TRUE };
+
+  // We want the editable part to point toward target.
+  // With 1D subspace: project target onto that axis (partial steer).
+  // With 2D subspace: put full target direction in the plane, keep perp.
+  let parallelStar;
+  if (V.length === 1) {
+    const v = V[0];
+    const scale = 1.15; // same energy as original along-component
+    const sign = Math.sign(targetDir[0]*v[0] + targetDir[1]*v[1]) || 1;
+    parallelStar = [v[0]*scale*sign, v[1]*scale*sign];
+  } else {
+    parallelStar = [targetDir[0]*1.15, targetDir[1]*1.15];
+  }
+  const xStar = [parallelStar[0] + perp[0], parallelStar[1] + perp[1]];
+
+  // Training probes "read" the parallel component angle (they only see subspace)
+  const trainRead = (Math.atan2(parallelStar[1], parallelStar[0]) * 180 / Math.PI + 360) % 360;
+  // Eval probe reads the full vector angle (sees leftover too) — imperfect unless subspace is full
+  const evalRead = (Math.atan2(xStar[1], xStar[0]) * 180 / Math.PI + 360) % 360;
+  return { xStar, trainRead, evalRead, perp, parallelStar };
+}
+
+function circErr(a, b) {
+  return Math.abs(((a - b + 180) % 360) - 180);
+}
+
+const state = { step: 0, n: 1 };
+
+function $(id) { return document.getElementById(id); }
+
+function el(name, attrs, text) {
+  const n = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function toSvg(x, y) {
+  // map math coords to svg; origin at center
+  const cx = 320, cy = 210, s = 110;
+  return [cx + x * s, cy - y * s];
+}
+
+function draw() {
+  const svg = $("viz");
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+  svg.appendChild(el("title", { id: "viz-title" }, "Steering geometry"));
+
+  const x = originalX();
+  const axes = probeAxes(state.n);
+  const V = orthonormalize(axes);
+  const steered = steerToy(x, V, state.n);
+  const { perp } = project(x, V);
+
+  // grid / axes
+  svg.appendChild(el("line", { x1: 40, y1: 210, x2: 600, y2: 210, stroke: "#d0dbdf" }));
+  svg.appendChild(el("line", { x1: 320, y1: 20, x2: 320, y2: 400, stroke: "#d0dbdf" }));
+  svg.appendChild(el("text", { x: 560, y: 200, "font-family": "Sora,sans-serif", "font-size": 11, fill: "#3a4c54" }, "dim 1"));
+  svg.appendChild(el("text", { x: 330, y: 36, "font-family": "Sora,sans-serif", "font-size": 11, fill: "#3a4c54" }, "dim 2"));
+
+  // target ray at 90°
+  if (state.step >= 3) {
+    const [tx, ty] = toSvg(0, 1.6);
+    svg.appendChild(el("line", { x1: 320, y1: 210, x2: tx, y2: ty, stroke: "#0f766e", "stroke-width": 2, "stroke-dasharray": "6 4", opacity: 0.7 }));
+    svg.appendChild(el("text", { x: tx + 8, y: ty + 4, "font-family": "Sora,sans-serif", "font-size": 12, fill: "#0f766e" }, "target 90°"));
+  }
+
+  // true angle ray
+  if (state.step === 0) {
+    const t = TRUE * Math.PI / 180;
+    const [ax, ay] = toSvg(Math.cos(t)*1.6, Math.sin(t)*1.6);
+    svg.appendChild(el("line", { x1: 320, y1: 210, x2: ax, y2: ay, stroke: "#526068", "stroke-width": 2, "stroke-dasharray": "4 3" }));
+    svg.appendChild(el("text", { x: ax + 6, y: ay, "font-family": "Sora,sans-serif", "font-size": 12, fill: "#526068" }, "true " + TRUE + "°"));
+  }
+
+  // subspace band
+  if (state.step >= 1) {
+    if (V.length === 1) {
+      const v = V[0];
+      const [a1x, a1y] = toSvg(v[0]*2.2, v[1]*2.2);
+      const [a2x, a2y] = toSvg(-v[0]*2.2, -v[1]*2.2);
+      svg.appendChild(el("line", { x1: a2x, y1: a2y, x2: a1x, y2: a1y, stroke: "#b45309", "stroke-width": 18, opacity: 0.25 }));
+      svg.appendChild(el("line", { x1: a2x, y1: a2y, x2: a1x, y2: a1y, stroke: "#b45309", "stroke-width": 2.5 }));
+      svg.appendChild(el("text", { x: a1x - 20, y: a1y - 10, "font-family": "Sora,sans-serif", "font-size": 12, fill: "#8a5a12" }, "subspace (1D)"));
+    } else {
+      svg.appendChild(el("circle", { cx: 320, cy: 210, r: 150, fill: "#f3e0c4", opacity: 0.45, stroke: "#b45309", "stroke-width": 2 }));
+      svg.appendChild(el("text", { x: 430, y: 80, "font-family": "Sora,sans-serif", "font-size": 12, fill: "#8a5a12" }, "subspace ≈ whole plane"));
+    }
+    // probe axis arrows
+    axes.forEach((a, i) => {
+      const v = angVec(a);
+      const [ex, ey] = toSvg(v[0]*1.7, v[1]*1.7);
+      svg.appendChild(el("line", { x1: 320, y1: 210, x2: ex, y2: ey, stroke: "#1d4ed8", "stroke-width": 2.2 }));
+      svg.appendChild(el("text", { x: ex + 4, y: ey + 4, "font-family": "Sora,sans-serif", "font-size": 11, fill: "#1d4ed8" }, "p" + (i+1)));
+    });
+  }
+
+  // x and decomposition
+  const [ox, oy] = toSvg(x[0], x[1]);
+  if (state.step >= 2) {
+    const [px, py] = toSvg(perp[0], perp[1]);
+    const par = [x[0]-perp[0], x[1]-perp[1]];
+    const [qx, qy] = toSvg(par[0], par[1]);
+    // parallelogram: 0 -> perp -> x, and 0 -> parallel -> x
+    svg.appendChild(el("line", { x1: 320, y1: 210, x2: px, y2: py, stroke: "#b45309", "stroke-width": 2, "stroke-dasharray": "5 4" }));
+    svg.appendChild(el("line", { x1: px, y1: py, x2: ox, y2: oy, stroke: "#1d4ed8", "stroke-width": 2, "stroke-dasharray": "5 4" }));
+    svg.appendChild(el("line", { x1: 320, y1: 210, x2: qx, y2: qy, stroke: "#1d4ed8", "stroke-width": 2 }));
+    svg.appendChild(el("text", { x: px + 6, y: py + 14, "font-family": "Sora,sans-serif", "font-size": 12, fill: "#8a5a12" }, "x⊥ keep"));
+    svg.appendChild(el("text", { x: qx + 6, y: qy - 8, "font-family": "Sora,sans-serif", "font-size": 12, fill: "#1d4ed8" }, "V c  edit"));
+  }
+
+  // original x
+  svg.appendChild(el("circle", { cx: ox, cy: oy, r: 7, fill: "#142028", stroke: "#fff", "stroke-width": 2 }));
+  svg.appendChild(el("text", { x: ox + 10, y: oy + 4, "font-family": "Sora,sans-serif", "font-size": 13, fill: "#142028" }, "x"));
+
+  // steered x*
+  if (state.step >= 3) {
+    const [sx, sy] = toSvg(steered.xStar[0], steered.xStar[1]);
+    svg.appendChild(el("line", { x1: ox, y1: oy, x2: sx, y2: sy, stroke: "#9f1239", "stroke-width": 2, "stroke-dasharray": "4 3" }));
+    svg.appendChild(el("circle", { cx: sx, cy: sy, r: 7, fill: "#9f1239", stroke: "#fff", "stroke-width": 2 }));
+    svg.appendChild(el("text", { x: sx + 10, y: sy + 4, "font-family": "Sora,sans-serif", "font-size": 13, fill: "#9f1239" }, "x*"));
+
+    // keep x_perp visible as the shared component
+    if (state.step >= 2) {
+      const [px, py] = toSvg(perp[0], perp[1]);
+      svg.appendChild(el("line", { x1: px, y1: py, x2: sx, y2: sy, stroke: "#9f1239", "stroke-width": 1.5, opacity: 0.5 }));
+    }
+  }
+
+  // eval readout arm
+  if (state.step >= 4) {
+    const er = steered.evalRead * Math.PI / 180;
+    const [ex, ey] = toSvg(Math.cos(er)*1.35, Math.sin(er)*1.35);
+    svg.appendChild(el("line", { x1: 320, y1: 210, x2: ex, y2: ey, stroke: "#0f766e", "stroke-width": 3 }));
+    svg.appendChild(el("text", { x: ex + 8, y: ey, "font-family": "Sora,sans-serif", "font-size": 12, fill: "#0f766e" }, "eval reads " + steered.evalRead.toFixed(0) + "°"));
+  }
+
+  // side panel text
+  const S = STEPS[state.step];
+  $("step-title").textContent = S.title;
+  $("story").textContent = S.story;
+  $("formula").textContent = S.formula;
+  $("code").textContent = S.code;
+
+  $("n-read").textContent = String(state.n);
+  if (state.step < 3) {
+    $("m-train").childNodes[0].textContent = "—";
+    $("m-eval").childNodes[0].textContent = TRUE + "°";
+    $("m-err").childNodes[0].textContent = circErr(TRUE, TARGET).toFixed(0) + "°";
+  } else {
+    $("m-train").childNodes[0].textContent = steered.trainRead.toFixed(0) + "°";
+    $("m-eval").childNodes[0].textContent = steered.evalRead.toFixed(0) + "°";
+    $("m-err").childNodes[0].textContent = circErr(steered.evalRead, TARGET).toFixed(0) + "°";
+  }
+
+  $("cap").textContent = state.n === 1
+    ? "With 1 probe the editable subspace is a thin line. x* can only slide along that line, so the eval probe (which sees the leftover) still sits far from 90°."
+    : "With several probes the subspace fills the plane in this toy. Then x* can point at 90° while keeping the same leftover x⊥ — and the eval probe follows.";
+}
+
+document.querySelectorAll("[data-step]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    state.step = +btn.dataset.step;
+    document.querySelectorAll("[data-step]").forEach(b => b.setAttribute("aria-current", b === btn ? "true" : "false"));
+    draw();
+  });
+});
+$("n").addEventListener("input", e => {
+  state.n = +e.target.value;
+  draw();
+});
+
+draw();
+</script>
+</body>
+</html>

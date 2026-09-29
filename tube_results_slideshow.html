@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tube results: direction’s spine and thickness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,460;0,7..72,650;1,7..72,460&family=Sora:wght@420;560;680&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #142028; --mute: #3a4c54; --field: #dfe8ea; --sheet: #f4f8f9;
+    --line: #b9c7cc; --spine: #1d4ed8; --tube: #b45309; --ok: #0f766e; --bad: #9f1239;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--field); color: var(--ink);
+    font-family: Literata, "Iowan Old Style", Palatino, serif;
+    font-size: 19px; line-height: 1.5;
+    display: grid; grid-template-rows: auto 1fr auto;
+  }
+  .top, .bot {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 18px; background: var(--sheet);
+  }
+  .top { border-bottom: 1px solid var(--line); justify-content: space-between; }
+  .bot { border-top: 1px solid var(--line); }
+  .brand { font-family: Sora, sans-serif; font-size: 13px; color: var(--mute); }
+  .progress { flex: 1; max-width: 280px; height: 6px; background: #d0dbdf; border-radius: 99px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; width: 0; background: var(--tube); }
+  .deck { position: relative; overflow: hidden; min-height: 0; }
+  .slide {
+    display: none; height: 100%; padding: 28px 36px 40px;
+    overflow: auto; max-width: 1100px; margin: 0 auto;
+  }
+  .slide.on { display: block; }
+  h1, h2, h3, .ui {
+    font-family: Sora, "Avenir Next", sans-serif;
+    font-weight: 560; letter-spacing: -0.03em; line-height: 1.15;
+  }
+  h1 { font-size: 34px; margin: 0 0 10px; max-width: 20ch; }
+  h2 { font-size: 26px; margin: 0 0 10px; max-width: 24ch; }
+  h3 { font-size: 16px; margin: 0 0 8px; }
+  p { margin: 0 0 12px; max-width: 64ch; }
+  .lede { font-size: 20px; color: var(--mute); max-width: 48ch; }
+  .tag {
+    display: inline-block; font-family: Sora, sans-serif; font-size: 12px;
+    color: var(--tube); border: 1px solid var(--tube); padding: 3px 8px; margin-bottom: 10px;
+  }
+  .tag.note { color: var(--mute); border-color: var(--line); }
+  .grid { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 22px; align-items: start; margin-top: 8px; }
+  .panel { background: var(--sheet); border: 1px solid var(--line); padding: 14px; }
+  .caption { font-family: Sora, sans-serif; font-size: 12.5px; color: var(--mute); margin: 8px 0 0; max-width: none; }
+  svg.viz { width: 100%; height: auto; display: block; background: #fff; border: 1px solid var(--line); }
+  table { width: 100%; border-collapse: collapse; font-size: 15.5px; margin: 8px 0 12px; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); }
+  th { font-family: Sora, sans-serif; font-size: 12px; font-weight: 560; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .compare { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .metric { font-family: Sora, sans-serif; font-size: 26px; font-weight: 680; letter-spacing: -0.04em; margin: 0; }
+  .metric span { display: block; font-size: 12px; font-weight: 420; color: var(--mute); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  button.chip, button.nav {
+    font-family: Sora, sans-serif; font-size: 14px; background: transparent;
+    color: var(--ink); border: 1px solid var(--line); padding: 7px 12px; cursor: pointer;
+  }
+  button.nav { min-width: 92px; }
+  button.nav.primary { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+  button.nav:disabled { opacity: 0.35; cursor: default; }
+  button.chip[aria-pressed="true"] { background: var(--ink); color: var(--sheet); border-color: var(--ink); }
+  label.row {
+    display: grid; grid-template-columns: 100px 1fr 48px; gap: 10px; align-items: center;
+    font-family: Sora, sans-serif; font-size: 13px; margin: 8px 0;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--ink); }
+  ul.plain { margin: 0 0 12px; padding-left: 1.15em; max-width: 64ch; }
+  li { margin: 0 0 6px; }
+  .bot .spacer { flex: 1; }
+  .bot .page { font-family: Sora, sans-serif; font-size: 13px; color: var(--mute); }
+  .hl { border-left: 3px solid var(--tube); padding-left: 12px; margin: 14px 0; }
+  a { color: var(--spine); }
+  @media (max-width: 860px) {
+    .grid, .compare { grid-template-columns: 1fr; }
+    h1 { font-size: 28px; }
+    .slide { padding: 20px 16px 32px; }
+  }
+</style>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">Tube exploration · direction only</div>
+    <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+    <div class="brand" id="which">Property: direction (angle)</div>
+  </header>
+
+  <div class="deck" id="deck">
+
+    <section class="slide on" data-id="0">
+      <span class="tag">Scope</span>
+      <h1>The tube is for direction — not speed or acceleration</h1>
+      <p class="lede">Every tube experiment in this project sits on the Part 2 <strong>periodic direction spline</strong> at layer 5 (train / velocity clips). Speed and acceleration were already flat: spline ≈ chord, so there was nothing tube-like to unpack.</p>
+      <div class="compare">
+        <div class="panel">
+          <h3>Direction</h3>
+          <p>Circular spine through 64 angle centroids. Thick residual around it. This is the tube.</p>
+        </div>
+        <div class="panel">
+          <h3>Speed</h3>
+          <p>Low-dim, almost linear. Chord matches spline. No tube campaign.</p>
+        </div>
+        <div class="panel">
+          <h3>Acceleration</h3>
+          <p>Even flatter (~2 nullspace dims). Same story: no tube campaign.</p>
+        </div>
+      </div>
+      <div class="hl">
+        <p style="margin:0"><strong>Property under study:</strong> heading angle θ of the blue disk, encoded in the mean-pooled residual at <code>L* = 5</code>.</p>
+      </div>
+    </section>
+
+    <section class="slide" data-id="1">
+      <span class="tag">Setup</span>
+      <h2>What was already true before the tube work</h2>
+      <div class="grid">
+        <div>
+          <ul class="plain">
+            <li>Part 1: direction needs ~41 orthogonal probes (dim ~82); multi-probe steering toward a fixed angle works.</li>
+            <li>Part 2: a periodic spline through angle centroids walks intermediate angles (~5° mid-path error); a chord teleports (~171°).</li>
+            <li>But the spline’s <em>endpoint</em> still loses to multi-probe (~18° vs ~8° on 0°→180°).</li>
+          </ul>
+          <p>Hypothesis: those extra Part 1 dimensions are not 82 different concepts. They are <strong>thickness around a 1D circle</strong> — a tube.</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" viewBox="0 0 420 260" aria-hidden="true">
+            <circle cx="150" cy="140" r="78" fill="#f3e0c4" opacity="0.9"/>
+            <circle cx="150" cy="140" r="58" fill="none" stroke="#1d4ed8" stroke-width="3"/>
+            <line x1="150" y1="82" x2="150" y2="198" stroke="#9f1239" stroke-width="2" stroke-dasharray="5 4"/>
+            <text x="250" y="100" font-family="Sora,sans-serif" font-size="14" fill="#1d4ed8">spine = angle</text>
+            <text x="250" y="130" font-family="Sora,sans-serif" font-size="14" fill="#b45309">tube = thickness</text>
+            <text x="250" y="160" font-family="Sora,sans-serif" font-size="14" fill="#9f1239">chord = teleport</text>
+          </svg>
+          <p class="caption">Object of study for the rest of this deck.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="2">
+      <span class="tag">Result 1 · pullback</span>
+      <h2>Optimize for the probe → leave the circle</h2>
+      <div class="grid">
+        <div>
+          <p>Goodfire’s check: start on the chord, L-BFGS a path so the probe tracks the claimed angle ramp, ask if the path falls onto the spline <code>Mh</code>.</p>
+          <p>On direction <code>0° → 180°</code> the opposite happens: the optimizer gets a <em>better</em> probe trajectory and moves <em>farther</em> from the spline.</p>
+          <table>
+            <thead><tr><th>Path</th><th class="num">Dist → Mh</th><th class="num">Mid error</th><th class="num">Final error</th></tr></thead>
+            <tbody>
+              <tr><td>Spline itself</td><td class="num">0.04</td><td class="num">12.5°</td><td class="num">8.8°</td></tr>
+              <tr><td>Chord (init)</td><td class="num">1.60</td><td class="num">174.6°</td><td class="num">8.8°</td></tr>
+              <tr><td>Pullback</td><td class="num"><strong>3.31</strong></td><td class="num"><strong>1.05°</strong></td><td class="num"><strong>1.17°</strong></td></tr>
+            </tbody>
+          </table>
+          <p>Recovery vs chord→spline gap: <strong>−1.09</strong>. Many off-spine offsets still decode as the right angle — the definition of a thick fiber / tube.</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="pull-svg" viewBox="0 0 420 280"></svg>
+          <p class="caption">Cartoon: green = spline, red = chord, brown = pullback leaving the circle while hitting the angle ramp.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="3">
+      <span class="tag">Result 2 · geometry</span>
+      <h2>The residual is almost all perpendicular</h2>
+      <div class="grid">
+        <div>
+          <p>For each train/velocity activation: find nearest spine point, take residual, strip the tangent, PCA what is left.</p>
+          <table>
+            <thead><tr><th>Quantity</th><th class="num">Value</th></tr></thead>
+            <tbody>
+              <tr><td>Median distance to spine</td><td class="num">4.62</td></tr>
+              <tr><td>Mean tangential energy</td><td class="num">0.03</td></tr>
+              <tr><td>Mean perpendicular energy</td><td class="num"><strong>26.45</strong></td></tr>
+              <tr><td>Variance in first 5 tube PCs</td><td class="num">64%</td></tr>
+              <tr><td>Variance in first 20 tube PCs</td><td class="num">91%</td></tr>
+            </tbody>
+          </table>
+          <p>So the cloud around the circle is real, mostly <em>normal</em> to the spine, and moderately low-rank — not a full 82-D ball.</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="var-svg" viewBox="0 0 420 260"></svg>
+          <p class="caption">Cumulative variance of perpendicular residuals (schematic of the measured curve).</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="4">
+      <span class="tag">Result 3 · steering</span>
+      <h2>Spine + two tube directions ≈ 20 multi-probes</h2>
+      <div class="grid">
+        <div>
+          <p>Steer with <code>z(t) = s(u(t)) + t · V_k c*</code>: walk the circle, ramp in <code>k</code> normal coordinates chosen so the frozen probe hits the target angle at the end.</p>
+          <table>
+            <thead><tr><th>Method on 0°→180°</th><th class="num">Mid</th><th class="num">Final</th></tr></thead>
+            <tbody>
+              <tr><td>Spline only</td><td class="num">12.5°</td><td class="num">19.8°</td></tr>
+              <tr><td>Chord</td><td class="num">teleport</td><td class="num">19.8°</td></tr>
+              <tr><td>Spine + resid-PCA k=1</td><td class="num">11.7°</td><td class="num">19.7°</td></tr>
+              <tr><td>Spine + resid-PCA k=2</td><td class="num"><strong>4.2°</strong></td><td class="num"><strong>2.8°</strong></td></tr>
+              <tr><td>Spine + nullspace tube k=1</td><td class="num">4.9°</td><td class="num"><strong>2.6°</strong></td></tr>
+              <tr><td>Multi-probe n=20</td><td class="num">—</td><td class="num">3.5°</td></tr>
+            </tbody>
+          </table>
+          <p>One variance component does almost nothing. Two close the endpoint gap <em>and</em> keep mid-path ordered. Short arc 22.5°→337.5°: k=2 lands at 2.4° vs 3.9° for n=20.</p>
+        </div>
+        <div class="panel">
+          <div class="chips" id="steer-chips"></div>
+          <svg class="viz" id="steer-svg" viewBox="0 0 420 240"></svg>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px" id="steer-read"></div>
+          <p class="caption">Scrub methods. Mid-path stays on-circle; final error drops once k≥2.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="5">
+      <span class="tag">Result 4 · why thick</span>
+      <h2>Fiber: moving in the tube barely changes angle</h2>
+      <div class="grid">
+        <div>
+          <p>From an anchor near 90°, step a unit vector and read the frozen probe (° per unit ε):</p>
+          <table>
+            <thead><tr><th>Direction</th><th class="num">Sensitivity</th></tr></thead>
+            <tbody>
+              <tr><td>Spine tangent</td><td class="num"><strong>8.82°</strong></td></tr>
+              <tr><td>Tube PC1</td><td class="num">2.16°</td></tr>
+              <tr><td>Tube PC2</td><td class="num">0.14°</td></tr>
+              <tr><td>Tube PC3</td><td class="num">0.65°</td></tr>
+            </tbody>
+          </table>
+          <p>Tangent moves θ ~4× harder than the leading tube PC. PC2 is almost flat. Relative to the spine, the cross-section is a <strong>fiber</strong> of the direction map — many activations, same angle. Not perfect: PC1 still leaks ~2°/ε.</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="fiber-svg" viewBox="0 0 420 240"></svg>
+          <p class="caption">Bar length = angle change per unit step.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="6">
+      <span class="tag">Result 5 · why thick</span>
+      <h2>Nuisance: speed lives in the tube, not the spine</h2>
+      <div class="grid">
+        <div>
+          <p>Ridge R² from spine coords <code>(sin u, cos u)</code> vs first 10 tube PCs:</p>
+          <table>
+            <thead><tr><th>Target</th><th class="num">Spine</th><th class="num">Tube-10</th></tr></thead>
+            <tbody>
+              <tr><td>Direction (sin,cos)</td><td class="num"><strong>0.55</strong></td><td class="num">−0.54</td></tr>
+              <tr><td>Speed</td><td class="num">−0.01</td><td class="num"><strong>0.70</strong></td></tr>
+              <tr><td>Acceleration</td><td class="num">−0.01</td><td class="num">0.24</td></tr>
+              <tr><td>Start y</td><td class="num">0.00</td><td class="num">0.49</td></tr>
+              <tr><td>Motion type (acc.)</td><td class="num">0.52</td><td class="num">0.78</td></tr>
+            </tbody>
+          </table>
+          <p>Split of labor: spine owns angle; tube owns speed (and some motion / start-y). Residualizing speed only removes ~28% of tube energy — thickness is partly nuisance, partly leftover fiber/copies.</p>
+        </div>
+        <div class="panel">
+          <svg class="viz" id="nuis-svg" viewBox="0 0 420 280"></svg>
+          <p class="caption">Blue = spine feature R²; brown = tube-10 R².</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="7">
+      <span class="tag">Result 6 · copies</span>
+      <h2>Part 1 probes sit in the tube — not on top variance axes</h2>
+      <div class="grid">
+        <div>
+          <ul class="plain">
+            <li>Early nullspace probe planes overlap the 20-D tube subspace a lot (~0.71–0.89 for the first five).</li>
+            <li>But variance-ordered tube prefixes capture almost none of that probe energy early: mean overlap sq. = 0.003 / 0.007 / 0.05 at k = 1 / 2 / 5, only 0.45 at k = 20.</li>
+          </ul>
+          <p>So “multi-probe directions” and “leading residual PCs” are <strong>different slices of the same fat neighborhood</strong>. That is why resid-PCA k=2 and nullspace-tube k=1 both steered well — different rulers, same cloud.</p>
+          <p>Leading variance is where speed sits. Steering-relevant axes are not the same as “biggest leftover variance.”</p>
+        </div>
+        <div class="panel">
+          <p class="metric">0.003 → 0.45<span>probe overlap energy as tube k grows 1 → 20</span></p>
+          <p class="caption" style="margin-top:14px">Hypothesis C score: partial. Probes ⊂ tube neighborhood, but ≠ top PCs.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="8">
+      <span class="tag">Result 7 · depth</span>
+      <h2>After emergence, the tube inflates</h2>
+      <div class="grid">
+        <div>
+          <p>Same spine+tube construction at four layers (train / velocity):</p>
+          <table>
+            <thead><tr><th>L</th><th class="num">Perp energy</th><th class="num">Tang sens.</th><th class="num">Tube PC1 sens.</th><th class="num">Mean ρ</th></tr></thead>
+            <tbody>
+              <tr><td>0</td><td class="num">3.4</td><td class="num">28.6°</td><td class="num">15.1°</td><td class="num">1.6</td></tr>
+              <tr><td><strong>5</strong></td><td class="num"><strong>26.4</strong></td><td class="num"><strong>8.8°</strong></td><td class="num"><strong>2.2°</strong></td><td class="num"><strong>4.9</strong></td></tr>
+              <tr><td>12</td><td class="num">49.5</td><td class="num">4.3°</td><td class="num">0.37°</td><td class="num">6.8</td></tr>
+              <tr><td>23</td><td class="num">220.7</td><td class="num">0.78°</td><td class="num">0.17°</td><td class="num">14.4</td></tr>
+            </tbody>
+          </table>
+          <p>Direction does not collapse onto a wire. Thickness grows with depth while a unit step moves θ less — more ways to realize the same angle.</p>
+        </div>
+        <div class="panel">
+          <div class="chips" id="depth-chips"></div>
+          <svg class="viz" id="depth-svg" viewBox="0 0 420 220"></svg>
+          <p class="caption" id="depth-note"></p>
+        </div>
+      </div>
+    </section>
+
+    <section class="slide" data-id="9">
+      <span class="tag">Scorecard</span>
+      <h2>What filled the direction tube</h2>
+      <table>
+        <thead><tr><th>Hypothesis</th><th>Score</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td>A. Probe fiber</td><td>Strong (relative)</td><td>Tangent ≫ tube sensitivity; tube alone cannot predict θ</td></tr>
+          <tr><td>B. Nuisance bundle</td><td>Strong for speed / motion</td><td>Tube R²(speed)=0.70; −28% energy after speed residualize</td></tr>
+          <tr><td>C. Redundant copies</td><td>Partial</td><td>Probes ⊂ tube20, but ≠ top variance PCs</td></tr>
+          <tr><td>D. Uncertainty radius</td><td>Weak</td><td>|ρ| correlations with confidence / entropy ≲ 0.3</td></tr>
+          <tr><td>E. Estimation fluff</td><td>Rejected</td><td>Tube steers; stable energy; depth structure; nuisance signal</td></tr>
+        </tbody>
+      </table>
+      <div class="hl">
+        <p style="margin:0">Direction = circular <strong>concept</strong> living in a tubular <strong>activation neighborhood</strong> whose coords are roughly (θ, speed, …, fiber/copy).</p>
+      </div>
+    </section>
+
+    <section class="slide" data-id="10">
+      <span class="tag">Takeaway</span>
+      <h2>Practical recipe on this data</h2>
+      <ul class="plain">
+        <li><strong>Walk the periodic spline</strong> when you care about intermediate angles.</li>
+        <li><strong>Add ~2 normal coordinates</strong> (residual PCA or first nullspace directions, orthogonal to the tangent) to nail a hard endpoint.</li>
+        <li>That unifies Part 1’s multi-probe hammer with Part 2’s manifold walk.</li>
+        <li>Do <strong>not</strong> treat direction and speed as independent 1D splines without residualizing — speed is entangled in the normal bundle.</li>
+      </ul>
+      <p class="lede">Sources: <a href="PART2_PULLBACK_TUBE_WRITEUP.md">PART2_PULLBACK_TUBE_WRITEUP.md</a>, <a href="PART2_TUBE_WHY_WRITEUP.md">PART2_TUBE_WHY_WRITEUP.md</a>. Concepts: <a href="concept_slideshow.html">concept_slideshow.html</a>.</p>
+    </section>
+
+  </div>
+
+  <footer class="bot">
+    <button type="button" class="nav" id="prev">Back</button>
+    <span class="page" id="page">1 / 11</span>
+    <div class="spacer"></div>
+    <button type="button" class="nav primary" id="next">Next</button>
+  </footer>
+
+<script>
+const STEER = [
+  { id: "k0", label: "Spline only", mid: 12.5, fin: 19.8 },
+  { id: "k1", label: "k=1 resid", mid: 11.7, fin: 19.7 },
+  { id: "k2", label: "k=2 resid", mid: 4.2, fin: 2.8 },
+  { id: "ns", label: "nullspace k=1", mid: 4.9, fin: 2.6 },
+  { id: "n20", label: "multi n=20", mid: null, fin: 3.5 }
+];
+const DEPTH = [
+  { L: 0, perp: 3.4, rho: 1.6, sens: 28.6 },
+  { L: 5, perp: 26.4, rho: 4.9, sens: 8.8 },
+  { L: 12, perp: 49.5, rho: 6.8, sens: 4.3 },
+  { L: 23, perp: 220.7, rho: 14.4, sens: 0.78 }
+];
+const NUIS = [
+  { name: "Direction", spine: 0.55, tube: -0.54 },
+  { name: "Speed", spine: -0.01, tube: 0.70 },
+  { name: "Accel", spine: -0.01, tube: 0.24 },
+  { name: "Start y", spine: 0.00, tube: 0.49 },
+  { name: "Motion", spine: 0.52, tube: 0.78 }
+];
+
+const state = { i: 0, steer: 2, depth: 1 };
+
+function $(id) { return document.getElementById(id); }
+function slides() { return [...document.querySelectorAll(".slide")]; }
+function el(name, attrs, text) {
+  const n = document.createElementNS("http://www.w3.org/2000/svg", name);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+  if (text != null) n.textContent = text;
+  return n;
+}
+function clear(svg) { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+
+function show(i) {
+  const all = slides();
+  state.i = Math.max(0, Math.min(all.length - 1, i));
+  all.forEach((s, k) => s.classList.toggle("on", k === state.i));
+  $("page").textContent = (state.i + 1) + " / " + all.length;
+  $("bar").style.width = (state.i / (all.length - 1) * 100).toFixed(1) + "%";
+  $("prev").disabled = state.i === 0;
+  $("next").textContent = state.i === all.length - 1 ? "Restart" : "Next";
+  const id = all[state.i].dataset.id;
+  if (id === "2") drawPull();
+  if (id === "3") drawVar();
+  if (id === "4") drawSteer();
+  if (id === "5") drawFiber();
+  if (id === "6") drawNuis();
+  if (id === "8") drawDepth();
+  all[state.i].scrollTop = 0;
+}
+
+function drawPull() {
+  const svg = $("pull-svg"); clear(svg);
+  // circle spine
+  svg.appendChild(el("circle", { cx: 160, cy: 150, r: 70, fill: "none", stroke: "#1d4ed8", "stroke-width": 3 }));
+  svg.appendChild(el("line", { x1: 160, y1: 80, x2: 160, y2: 220, stroke: "#9f1239", "stroke-width": 2, "stroke-dasharray": "5 4" }));
+  // pullback path leaving
+  svg.appendChild(el("path", {
+    d: "M160,80 Q40,150 160,220",
+    fill: "none", stroke: "#b45309", "stroke-width": 3
+  }));
+  svg.appendChild(el("text", { x: 250, y: 90, "font-family": "Sora,sans-serif", "font-size": 13, fill: "#1d4ed8" }, "Mh (spline)"));
+  svg.appendChild(el("text", { x: 250, y: 120, "font-family": "Sora,sans-serif", "font-size": 13, fill: "#9f1239" }, "chord"));
+  svg.appendChild(el("text", { x: 250, y: 150, "font-family": "Sora,sans-serif", "font-size": 13, fill: "#b45309" }, "pullback (leaves)"));
+  svg.appendChild(el("text", { x: 250, y: 190, "font-family": "Literata,serif", "font-size": 14, fill: "#142028" }, "better probe,"));
+  svg.appendChild(el("text", { x: 250, y: 210, "font-family": "Literata,serif", "font-size": 14, fill: "#142028" }, "farther from Mh"));
+}
+
+function drawVar() {
+  const svg = $("var-svg"); clear(svg);
+  const cum = [0, 0.22, 0.38, 0.48, 0.57, 0.64, 0.70, 0.75, 0.79, 0.83, 0.86, 0.88, 0.90, 0.91];
+  const X0 = 40, X1 = 390, Y0 = 30, Y1 = 210;
+  const pts = cum.map((v, i) => {
+    const x = X0 + (i / (cum.length - 1)) * (X1 - X0);
+    const y = Y1 - v * (Y1 - Y0);
+    return x + "," + y;
+  }).join(" ");
+  svg.appendChild(el("line", { x1: X0, y1: Y1, x2: X1, y2: Y1, stroke: "#b9c7cc" }));
+  svg.appendChild(el("polyline", { points: pts, fill: "none", stroke: "#b45309", "stroke-width": 2.5 }));
+  svg.appendChild(el("line", { x1: X0 + 5/13*(X1-X0), y1: Y0, x2: X0 + 5/13*(X1-X0), y2: Y1, stroke: "#1d4ed8", "stroke-dasharray": "4 3" }));
+  svg.appendChild(el("text", { x: X0 + 5/13*(X1-X0) + 6, y: 48, "font-family": "Sora,sans-serif", "font-size": 11, fill: "#1d4ed8" }, "k=5 → 64%"));
+  svg.appendChild(el("text", { x: X1 - 60, y: Y1 - 0.91*(Y1-Y0) - 6, "font-family": "Sora,sans-serif", "font-size": 11, fill: "#b45309" }, "k=20 → 91%"));
+}
+
+function drawSteer() {
+  const box = $("steer-chips");
+  if (!box.dataset.ready) {
+    STEER.forEach((s, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = s.label;
+      b.setAttribute("aria-pressed", i === state.steer ? "true" : "false");
+      b.addEventListener("click", () => {
+        state.steer = i;
+        [...box.children].forEach((c, j) => c.setAttribute("aria-pressed", j === i ? "true" : "false"));
+        drawSteer();
+      });
+      box.appendChild(b);
+    });
+    box.dataset.ready = "1";
+  }
+  const s = STEER[state.steer];
+  const svg = $("steer-svg"); clear(svg);
+  svg.appendChild(el("circle", { cx: 130, cy: 120, r: 70, fill: "#f3e0c4", opacity: s.id === "k0" ? 0.15 : 0.85 }));
+  svg.appendChild(el("circle", { cx: 130, cy: 120, r: 54, fill: "none", stroke: "#1d4ed8", "stroke-width": 3 }));
+  const k = s.id === "k0" || s.id === "n20" ? 0 : (s.id === "k1" || s.id === "ns" ? 1 : 2);
+  [[40, -24], [-28, -32]].slice(0, k).forEach(v => {
+    svg.appendChild(el("line", { x1: 130, y1: 120, x2: 130 + v[0], y2: 120 + v[1], stroke: "#b45309", "stroke-width": 3 }));
+  });
+  svg.appendChild(el("text", { x: 230, y: 90, "font-family": "Sora,sans-serif", "font-size": 14, fill: "#142028" }, s.label));
+  $("steer-read").innerHTML =
+    `<p class="metric">${s.mid == null ? "—" : s.mid.toFixed(1) + "°"}<span>mid → claimed</span></p>` +
+    `<p class="metric">${s.fin.toFixed(1)}°<span>final → target</span></p>`;
+}
+
+function drawFiber() {
+  const svg = $("fiber-svg"); clear(svg);
+  const rows = [["Tangent", 8.82, "#1d4ed8"], ["Tube PC1", 2.16, "#b45309"], ["Tube PC2", 0.14, "#b45309"], ["Tube PC3", 0.65, "#b45309"]];
+  rows.forEach((r, i) => {
+    const y = 40 + i * 48;
+    svg.appendChild(el("text", { x: 10, y: y + 4, "font-family": "Sora,sans-serif", "font-size": 13, fill: "#142028" }, r[0]));
+    svg.appendChild(el("rect", { x: 110, y: y - 10, width: (r[1] / 8.82) * 260, height: 16, fill: r[2] }));
+    svg.appendChild(el("text", { x: 110 + (r[1] / 8.82) * 260 + 8, y: y + 4, "font-family": "Sora,sans-serif", "font-size": 13, fill: "#3a4c54" }, r[1].toFixed(2) + "°"));
+  });
+}
+
+function drawNuis() {
+  const svg = $("nuis-svg"); clear(svg);
+  const mid = 250;
+  NUIS.forEach((row, i) => {
+    const y = 36 + i * 46;
+    svg.appendChild(el("text", { x: 8, y: y + 4, "font-family": "Sora,sans-serif", "font-size": 12, fill: "#142028" }, row.name));
+    const sx = mid + row.spine * 140;
+    const tx = mid + Math.max(-0.55, row.tube) * 140;
+    svg.appendChild(el("rect", { x: Math.min(mid, sx), y: y - 10, width: Math.abs(sx - mid), height: 8, fill: "#1d4ed8" }));
+    svg.appendChild(el("rect", { x: Math.min(mid, tx), y: y, width: Math.abs(tx - mid), height: 8, fill: "#b45309" }));
+  });
+  svg.appendChild(el("line", { x1: mid, y1: 16, x2: mid, y2: 260, stroke: "#b9c7cc" }));
+}
+
+function drawDepth() {
+  const box = $("depth-chips");
+  if (!box.dataset.ready) {
+    DEPTH.forEach((d, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = "L" + d.L;
+      b.setAttribute("aria-pressed", i === state.depth ? "true" : "false");
+      b.addEventListener("click", () => {
+        state.depth = i;
+        [...box.children].forEach((c, j) => c.setAttribute("aria-pressed", j === i ? "true" : "false"));
+        drawDepth();
+      });
+      box.appendChild(b);
+    });
+    box.dataset.ready = "1";
+  }
+  const svg = $("depth-svg"); clear(svg);
+  DEPTH.forEach((d, i) => {
+    const cx = 55 + i * 95;
+    const rad = 6 + d.rho * 2.8;
+    svg.appendChild(el("circle", { cx, cy: 100, r: rad, fill: i === state.depth ? "#d89a1a" : "#e7d7b0" }));
+    svg.appendChild(el("circle", { cx, cy: 100, r: 4, fill: "none", stroke: "#1d4ed8", "stroke-width": 2 }));
+    svg.appendChild(el("text", { x: cx, y: 175, "text-anchor": "middle", "font-family": "Sora,sans-serif", "font-size": 13, fill: "#142028" }, "L" + d.L));
+  });
+  const d = DEPTH[state.depth];
+  $("depth-note").textContent = `Layer ${d.L}: perp energy ${d.perp}, mean radius ${d.rho}, tangent sensitivity ${d.sens}° per unit.`;
+}
+
+$("prev").addEventListener("click", () => show(state.i - 1));
+$("next").addEventListener("click", () => {
+  if (state.i === slides().length - 1) show(0);
+  else show(state.i + 1);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); $("next").click(); }
+  if (e.key === "ArrowLeft") { e.preventDefault(); $("prev").click(); }
+});
+
+show(0);
+</script>
+</body>
+</html>

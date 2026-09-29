@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How manifold steering finds its spline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,460;0,7..72,640;1,7..72,460&family=Sora:wght@420;560;680&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --field: #e4ecee;
+    --sheet: #f7fafa;
+    --ink: #142028;
+    --mute: #526068;
+    --line: #c3cfd4;
+    --disk: #1d4ed8;
+    --manifold: #0f766e;
+    --linear: #9f1239;
+    --mark: #d89a1a;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    font-family: Literata, "Iowan Old Style", Palatino, serif;
+    font-size: 18px;
+    line-height: 1.55;
+  }
+  a { color: var(--disk); }
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 2px solid var(--disk);
+    outline-offset: 3px;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 40px 28px 88px; }
+  h1, h2, h3, .ui {
+    font-family: Sora, "Avenir Next", sans-serif;
+    font-weight: 560;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+  h1 { font-size: 40px; font-weight: 680; margin: 0 0 12px; max-width: 18ch; }
+  h2 { font-size: 26px; margin: 0 0 10px; }
+  h3 { font-size: 17px; margin: 0 0 8px; }
+  p { margin: 0 0 14px; max-width: 68ch; }
+  .lede { font-size: 20px; max-width: 46ch; }
+  .mute { color: var(--mute); }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.86em;
+  }
+  nav.jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    margin: 22px 0 8px;
+    font-family: Sora, sans-serif;
+    font-size: 14px;
+  }
+  nav.jump a { text-decoration: none; }
+  header.hero {
+    display: grid;
+    grid-template-columns: minmax(0, 0.82fr) minmax(320px, 1.18fr);
+    gap: 32px;
+    align-items: end;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  section { margin-top: 42px; }
+  .instrument {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 14px 14px 12px;
+  }
+  .toolbar, .pathrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .toolbar button, .pathrow button {
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--line);
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .toolbar button[aria-pressed="true"] {
+    background: var(--ink);
+    color: var(--sheet);
+    border-color: var(--ink);
+  }
+  .pathrow button[aria-pressed="true"].on-m { border-color: var(--manifold); color: var(--manifold); background: #e7f4f2; }
+  .pathrow button[aria-pressed="true"].on-l { border-color: var(--linear); color: var(--linear); background: #fbecef; }
+  label.slider {
+    display: grid;
+    grid-template-columns: 72px 1fr auto;
+    gap: 10px;
+    align-items: center;
+    font-family: Sora, sans-serif;
+    font-size: 13px;
+    margin: 4px 0 8px;
+  }
+  input[type="range"] { width: 100%; accent-color: var(--ink); }
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(180px, 0.7fr);
+    gap: 12px;
+  }
+  svg.stage-svg { width: 100%; height: auto; display: block; background: #fff; border: 1px solid var(--line); }
+  .belief {
+    border: 1px solid var(--line);
+    background: #fff;
+    padding: 10px 10px 6px;
+    min-height: 100%;
+  }
+  .belief h3 { font-size: 13px; }
+  .bar-row {
+    display: grid;
+    grid-template-columns: 52px 1fr 36px;
+    gap: 6px;
+    align-items: center;
+    margin: 3px 0;
+    font-family: Sora, sans-serif;
+    font-size: 11px;
+    color: var(--mute);
+  }
+  .bar-track { height: 8px; background: #e7eeef; }
+  .bar-fill { height: 8px; background: var(--manifold); width: 0%; }
+  .bar-fill.hot { background: var(--linear); }
+  .caption, .note {
+    font-family: Sora, sans-serif;
+    font-size: 12px;
+    color: var(--mute);
+    margin: 8px 0 0;
+    max-width: none;
+  }
+  .split {
+    display: grid;
+    grid-template-columns: 1.15fr 0.85fr;
+    gap: 28px;
+    align-items: start;
+  }
+  ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+  ol.steps li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 36px 1fr;
+    gap: 12px;
+    margin: 0 0 16px;
+  }
+  ol.steps li::before {
+    content: counter(step);
+    font-family: Sora, sans-serif;
+    font-weight: 680;
+    color: var(--manifold);
+    font-size: 18px;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 10px 8px 0; border-bottom: 1px solid var(--line); }
+  th { font-family: Sora, sans-serif; font-size: 13px; font-weight: 560; }
+  .formula {
+    font-family: Sora, sans-serif;
+    font-size: 15px;
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    margin: 0 0 12px;
+  }
+  .panel {
+    background: var(--sheet);
+    border: 1px solid var(--line);
+    padding: 16px 16px 8px;
+  }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-family: Sora, sans-serif; font-size: 12px; margin-top: 8px; }
+  .swatch { display: inline-block; width: 18px; height: 3px; margin-right: 6px; vertical-align: middle; }
+  footer { margin-top: 48px; color: var(--mute); font-size: 15px; }
+  @media (max-width: 860px) {
+    h1 { font-size: 32px; }
+    header.hero, .split, .stage { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div>
+      <p class="mute ui" style="margin-bottom:8px">Goodfire / Wurgaft et al., arXiv:2605.05115</p>
+      <h1>Steering is a path, and the path is a spline</h1>
+      <p class="lede">Manifold steering replaces a straight line in activation space with a curve fit through the model’s own concept centroids. Walk the curve and the outputs pass through neighboring concepts. Cut the chord and the outputs jump.</p>
+      <nav class="jump">
+        <a href="#demo">Watch a path</a>
+        <a href="#fit">How the spline is fit</a>
+        <a href="#steer">How steering uses it</a>
+        <a href="#car">Mountain car</a>
+        <a href="#physics">Speed, direction, acceleration</a>
+      </nav>
+    </div>
+    <div class="instrument" id="demo">
+      <div class="toolbar" role="group" aria-label="Geometry">
+        <button type="button" data-mode="cyclic" aria-pressed="true">Weekday circle</button>
+        <button type="button" data-mode="sequential" aria-pressed="false">Open curve</button>
+        <button type="button" data-mode="folded" aria-pressed="false">Folded loop</button>
+      </div>
+      <div class="stage">
+        <svg class="stage-svg" viewBox="0 0 440 360" role="img" aria-labelledby="stage-title">
+          <title id="stage-title">Activation space with a spline and a straight chord</title>
+          <text id="stage-label" x="16" y="22" font-family="Sora, sans-serif" font-size="12" fill="#526068"></text>
+          <polyline id="curve" fill="none" stroke="#0f766e" stroke-width="2.4"/>
+          <line id="chord" stroke="#9f1239" stroke-width="2" stroke-dasharray="5 4"/>
+          <g id="dots"></g>
+          <circle id="walker-m" r="6.5" fill="#0f766e" stroke="#fff" stroke-width="1.5"/>
+          <circle id="walker-l" r="6.5" fill="#9f1239" stroke="#fff" stroke-width="1.5"/>
+        </svg>
+        <div class="belief">
+          <h3 id="belief-title">Belief along the green path</h3>
+          <div id="bars"></div>
+          <p class="caption" id="belief-note"></p>
+        </div>
+      </div>
+      <label class="slider">Progress
+        <input id="t" type="range" min="0" max="1000" value="500" aria-valuemin="0" aria-valuemax="1">
+        <span id="t-read">0.50</span>
+      </label>
+      <div class="pathrow" role="group" aria-label="Which path feeds the belief bars">
+        <button type="button" class="on-m" id="show-m" aria-pressed="true">Read the spline</button>
+        <button type="button" class="on-l" id="show-l" aria-pressed="false">Read the chord</button>
+      </div>
+      <div class="legend">
+        <span><i class="swatch" style="background:#0f766e"></i>Spline on the manifold</span>
+        <span><i class="swatch" style="background:#9f1239"></i>Straight chord</span>
+        <span><i class="swatch" style="background:#142028;height:8px;width:8px;border-radius:50%"></i>Concept centroids</span>
+      </div>
+      <p class="caption" id="demo-caption">Drag progress. The bars are a toy of the paper’s behavior readout: softmax of distance to the concept centroids. On the spline the mass walks through neighbors. On the chord it piles up on the two endpoints.</p>
+    </div>
+  </header>
+
+  <section id="fit">
+    <h2>How they find the spline</h2>
+    <div class="split">
+      <div>
+        <p>They do not discover the curve with an unsupervised manifold learner. The task already supplies an ordering — days, ages, grid coordinates, car position — and the spline is the smoothest curve through the average activation of each value on that ordering.</p>
+        <ol class="steps">
+          <li>
+            <div>
+              <h3>Collect unintervened activations</h3>
+              <p>Run the frozen model on the task. For language, take the residual stream at one late layer (Llama 3.1 8B, layer 28, last token). For mountain car, take the encoder latent of each rendered frame.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h3>Drop to a subspace</h3>
+              <p>Language activations are projected with PCA to 64 dimensions. The spline lives entirely in that subspace. The leftover coordinates are kept untouched when you later steer. Mountain car is already 64-dimensional, so they skip this cut.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h3>Average one centroid per concept</h3>
+              <p>Every prompt with the same answer is averaged. Wednesday is one point, not a cloud. Mountain car has a continuous position, so they slice the range into 100 bins and average the encoder vectors in each occupied bin, weighted by the square root of the bin count.</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h3>Choose the intrinsic coordinate</h3>
+              <p>This coordinate is the parameter the spline is drawn against. Sequential concepts use the ground-truth order (letter index, age). Cyclic concepts use the angle of each centroid in the top two principal components, <span class="formula" style="display:inline;border:0;padding:0;background:none">θ = atan2(PC2, PC1)</span>, so the loop can close without being told the weekday names. Grids use the graph’s own (x, y). Mountain car uses position itself, scaled to [0, 1].</p>
+            </div>
+          </li>
+          <li>
+            <div>
+              <h3>Interpolate with a cubic spline</h3>
+              <p>One-dimensional concepts get a cubic spline through the centroids (Reinsch 1967). Sequential tasks use a natural cubic spline, second derivative zero at the ends. Cyclic tasks use a periodic cubic spline so Sunday meets Monday with matching slope. The fit passes through every centroid exactly. Two-dimensional grids use a thin-plate spline, the surface version of the same idea. Mountain car uses a smoothing spline, one univariate spline per latent coordinate.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>Which spline for which task</h3>
+        <table>
+          <thead><tr><th>Task</th><th>Shape</th><th>Parameter</th><th>Spline</th></tr></thead>
+          <tbody>
+            <tr><td>Weekdays, months</td><td>Closed loop</td><td>Angle in the top two PCs</td><td>Periodic cubic</td></tr>
+            <tr><td>Letters, ages</td><td>Open curve</td><td>Ground-truth order</td><td>Natural cubic</td></tr>
+            <tr><td>In-context grid</td><td>Sheet</td><td>Graph (x, y)</td><td>Thin-plate</td></tr>
+            <tr><td>Mountain car position</td><td>Folded loop</td><td>Position bin</td><td>Smoothing, per coordinate</td></tr>
+          </tbody>
+        </table>
+        <p>The behavior manifold is the same construction on output distributions. Each distribution is mapped by a square root into Hellinger space, the spline is fit in the tangent plane of that sphere, and points are mapped back with the exponential map so every sample is still a valid distribution.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="steer">
+    <h2>How steering uses the spline</h2>
+    <div class="split">
+      <div>
+        <p>A steering path is a curve from one activation to another. The model’s activation at the chosen site is replaced by a point on that curve, and the forward pass continues. Linear steering and manifold steering share the endpoints. They differ in the coordinate system of the interpolation.</p>
+        <p class="formula">linear: (1 − t) h₀ + t h₁</p>
+        <p class="formula">manifold: s( (1 − t) u₀ + t u₁ )</p>
+        <p>Here u is the intrinsic coordinate, and s is the spline that turns u back into an activation. On a circle, t moves the angle. On ages, t moves along the age index. The decoded activation stays on the curve the whole way.</p>
+        <p>At intervention time the spline point is lifted out of PCA with the inverse projection and added to the prompt’s original leftover coordinates. Only the top 64 components change. Linear steering, in their language experiments, replaces the whole residual.</p>
+        <p>They sample about 50 steps, average the resulting output distributions over a fixed handful of base prompts, and compare the trajectory to the behavior spline. Manifold paths shift probability onto neighboring concepts. Linear paths put mass on the endpoints at once — the teleport the demo draws in red.</p>
+      </div>
+      <div class="panel">
+        <h3>The two checks</h3>
+        <p><strong>Along the activation spline.</strong> Does behavior follow the behavior spline? They also score cumulative Bhattacharyya distance from each output to the nearest point on that behavior curve. Lower means the outputs stayed on natural distributions.</p>
+        <p><strong>Pullback, the reverse direction.</strong> Optimize an activation path so the outputs track the behavior spline. The optimized path lands back on the activation spline, even though it starts on the chord. That optimization is L-BFGS on a second spline’s control points. It is evidence, and it is not required to steer.</p>
+        <p>The isometry test is correlational and comes first: arc length between centroids on the activation spline versus arc length on the behavior spline. They report Pearson r near 0.99 on weekdays, letters, ages, and mountain car. Chord length in activation space correlates much less, and on mountain car it falls to about 0.06 because the loop folds.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="car">
+    <h2>Mountain car is the visual version</h2>
+    <p>Section 5 is the piece that sits next to a video encoder. They train a small recurrent world model: a CNN encodes a 128×128 frame to 64 dimensions, a GRU mixes in the action, a decoder predicts the next frame as a residual. Position of the car is the concept.</p>
+    <div class="split">
+      <div>
+        <p>Encoder states from 100 rollouts lie on a curve parameterized by position. Wall and goal look alike, so the curve nearly closes: two positions that are far apart in the valley can sit next to each other in activation space. A straight chord between them is short and meaningless. The spline follows the valley.</p>
+        <p>There is no vocabulary, so “behavior” is manufactured. Bin centers μ_b are samples of the activation spline. A latent z is turned into a distribution over bins by</p>
+        <p class="formula">p(z) = softmax( −‖z − μ_b‖² / τ ), τ = 0.5</p>
+        <p>That distribution gets the same Hellinger spline as the language outputs. Steering along the activation spline moves the decoded car smoothly up the hill. The chord decodes as a blur: a mixture of the start and end positions. The folded-loop mode in the demo is a cartoon of that fold.</p>
+      </div>
+      <div class="panel">
+        <h3>What they measure on the car</h3>
+        <p>A ridge probe on the encoder recovers position at R² ≈ 0.95 and velocity at R² ≈ 0.90, so the latent really carries the state.</p>
+        <p>Arc length on the activation spline versus arc length on the behavior spline: r = 0.996 over 50 anchor positions. Chord length versus behavior arc length: r = 0.06.</p>
+        <p>Pullback paths, optimized to match the behavior spline, sit 0.29 away from the activation curve, against 2.22 for the chord they were initialized on.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="physics">
+    <h2>What this means for speed, direction, and acceleration</h2>
+    <p>V-JEPA has no next-token distribution over a concept set. The mountain-car readout is the relevant substitute: a curve through activation centroids, and a probe or a distance-to-centroid distribution as behavior. Part 1 already located the layer and the linear baseline. Direction is the weekday case. Speed and acceleration magnitude are the age case, unless the cloud is thick enough that a single curve cannot carry them.</p>
+    <table>
+      <thead>
+        <tr><th>Variable</th><th>Ordering</th><th>Spline the paper would use</th><th>What Part 1 already suggests</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Direction</td>
+          <td>Circle, 64 angles</td>
+          <td>Periodic cubic through one centroid per angle</td>
+          <td>High-dimensional and redundant at layer 5 (82 dimensions, sawtooth). A 1D curve may be only a spine through a tube. Multi-probe steering already moves held-out angle; the spline test is whether the spine is enough.</td>
+        </tr>
+        <tr>
+          <td>Speed</td>
+          <td>Open interval, 0.25–4.0 m/s</td>
+          <td>Natural cubic through one centroid per magnitude</td>
+          <td>Linear from layer 0, about 5 dimensions. The chord and the spline may nearly agree. That agreement is a result: flat geometry is where linear steering is the right geometry.</td>
+        </tr>
+        <tr>
+          <td>Acceleration</td>
+          <td>Open interval, 0.25–10 m/s²</td>
+          <td>Same natural cubic</td>
+          <td>Even thinner, about 2 dimensions at layer 5. Expect the same comparison, with less room for curvature.</td>
+        </tr>
+      </tbody>
+    </table>
+    <p>The operational version of that comparison is in <a href="PART2_PLAN.md">PART2_PLAN.md</a>. It stays inside the saved layer-5 activations and treats pullback optimization as out of scope.</p>
+  </section>
+
+  <footer>
+    <p>Sources: Wurgaft et al., sections 2–5 and appendices A.3–A.6 and B. Figures in the paper are the authority for the pictures; this page is a working model of the method. Sibling page: <a href="explainer.html">Part 1 probe explainer</a>.</p>
+  </footer>
+</div>
+<script>
+const MODES = {
+  cyclic: {
+    name: "Weekday circle — periodic spline",
+    caption: "Seven centroids on a loop, the weekday construction. The green walker moves in angle. The red walker cuts the interior, and the belief splits between the endpoints.",
+    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+    start: 0,
+    end: 3,
+    point(u) {
+      const ang = -Math.PI / 2 + u * Math.PI * 2;
+      return [Math.cos(ang), Math.sin(ang)];
+    },
+    wrap: true
+  },
+  sequential: {
+    name: "Open curve — natural spline",
+    caption: "Eight magnitudes on a bow, the speed and age construction. The spline follows the bow. The chord cuts underneath it.",
+    labels: ["0.25", "0.8", "1.3", "1.9", "2.4", "3.0", "3.5", "4.0"],
+    start: 1,
+    end: 6,
+    point(u) {
+      return [u * 2 - 1, 0.62 * Math.sin(u * Math.PI)];
+    },
+    wrap: false
+  },
+  folded: {
+    name: "Folded loop — mountain car",
+    caption: "Position runs almost all the way around, and the two ends sit near each other. The short red chord joins distant positions. The green path drives the long way, which is the valley.",
+    labels: ["wall", "−1.0", "−0.8", "−0.6", "−0.4", "−0.2", "0.0", "0.2", "0.4", "goal"],
+    start: 0,
+    end: 9,
+    point(u) {
+      const phi = 0.35 + u * (Math.PI * 2 - 0.7);
+      return [Math.cos(phi), Math.sin(phi)];
+    },
+    wrap: false
+  }
+};
+
+const state = { mode: "cyclic", t: 0.5, read: "m" };
+
+function centroids(mode) {
+  const spec = MODES[mode];
+  const n = spec.labels.length;
+  return spec.labels.map((label, i) => {
+    const u = spec.wrap ? i / n : (n === 1 ? 0 : i / (n - 1));
+    const [x, y] = spec.point(u);
+    return { label, u, x, y };
+  });
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function walkU(mode, t) {
+  const spec = MODES[mode];
+  const cs = centroids(mode);
+  const u0 = cs[spec.start].u;
+  const u1 = cs[spec.end].u;
+  if (!spec.wrap) return lerp(u0, u1, t);
+  let du = u1 - u0;
+  if (du > 0.5) du -= 1;
+  if (du < -0.5) du += 1;
+  let u = u0 + du * t;
+  u = ((u % 1) + 1) % 1;
+  return u;
+}
+
+function toSvg(x, y) {
+  const cx = 210, cy = 198, s = 118;
+  return [cx + x * s, cy - y * s];
+}
+
+function belief(mode, x, y) {
+  const cs = centroids(mode);
+  const tau = 0.18;
+  const logits = cs.map(c => -((x - c.x) ** 2 + (y - c.y) ** 2) / tau);
+  const m = Math.max(...logits);
+  const ex = logits.map(v => Math.exp(v - m));
+  const z = ex.reduce((a, b) => a + b, 0);
+  return ex.map(v => v / z);
+}
+
+function render() {
+  const spec = MODES[state.mode];
+  const cs = centroids(state.mode);
+  document.getElementById("stage-label").textContent = spec.name;
+  document.getElementById("demo-caption").textContent = spec.caption;
+
+  const samples = [];
+  const nS = spec.wrap ? 120 : 80;
+  for (let i = 0; i <= nS; i++) {
+    const u = i / nS;
+    const [x, y] = spec.point(u);
+    samples.push(toSvg(x, y));
+  }
+  if (spec.wrap) {
+    const [x, y] = spec.point(0);
+    samples.push(toSvg(x, y));
+  }
+  document.getElementById("curve").setAttribute("points", samples.map(p => p.join(",")).join(" "));
+
+  const a = cs[spec.start];
+  const b = cs[spec.end];
+  const [ax, ay] = toSvg(a.x, a.y);
+  const [bx, by] = toSvg(b.x, b.y);
+  const chord = document.getElementById("chord");
+  chord.setAttribute("x1", ax);
+  chord.setAttribute("y1", ay);
+  chord.setAttribute("x2", bx);
+  chord.setAttribute("y2", by);
+
+  const dots = document.getElementById("dots");
+  dots.replaceChildren();
+  cs.forEach((c, i) => {
+    const [sx, sy] = toSvg(c.x, c.y);
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", sx);
+    dot.setAttribute("cy", sy);
+    dot.setAttribute("r", i === spec.start || i === spec.end ? 5 : 3.5);
+    dot.setAttribute("fill", "#142028");
+    dots.appendChild(dot);
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", sx + 8);
+    text.setAttribute("y", sy - 8);
+    text.setAttribute("font-family", "Sora, sans-serif");
+    text.setAttribute("font-size", "11");
+    text.setAttribute("fill", "#526068");
+    text.textContent = c.label;
+    dots.appendChild(text);
+  });
+
+  const u = walkU(state.mode, state.t);
+  const [mx, my] = spec.point(u);
+  const [msx, msy] = toSvg(mx, my);
+  const lx = lerp(a.x, b.x, state.t);
+  const ly = lerp(a.y, b.y, state.t);
+  const [lsx, lsy] = toSvg(lx, ly);
+  const wm = document.getElementById("walker-m");
+  const wl = document.getElementById("walker-l");
+  wm.setAttribute("cx", msx);
+  wm.setAttribute("cy", msy);
+  wl.setAttribute("cx", lsx);
+  wl.setAttribute("cy", lsy);
+  wm.setAttribute("opacity", state.read === "m" ? "1" : "0.35");
+  wl.setAttribute("opacity", state.read === "l" ? "1" : "0.35");
+
+  const xy = state.read === "m" ? [mx, my] : [lx, ly];
+  const probs = belief(state.mode, xy[0], xy[1]);
+  const bars = document.getElementById("bars");
+  bars.replaceChildren();
+  cs.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "bar-row";
+    const name = document.createElement("span");
+    name.textContent = c.label;
+    const track = document.createElement("div");
+    track.className = "bar-track";
+    const fill = document.createElement("div");
+    fill.className = "bar-fill" + (state.read === "l" ? " hot" : "");
+    fill.style.width = (probs[i] * 100).toFixed(1) + "%";
+    track.appendChild(fill);
+    const pct = document.createElement("span");
+    pct.textContent = Math.round(probs[i] * 100) + "%";
+    row.append(name, track, pct);
+    bars.appendChild(row);
+  });
+  document.getElementById("belief-title").textContent = state.read === "m"
+    ? "Belief along the green path"
+    : "Belief along the red path";
+  const peak = cs[probs.indexOf(Math.max(...probs))].label;
+  document.getElementById("belief-note").textContent = "Largest bin: " + peak + ".";
+  document.getElementById("t-read").textContent = state.t.toFixed(2);
+}
+
+document.querySelectorAll(".toolbar button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    state.mode = btn.dataset.mode;
+    document.querySelectorAll(".toolbar button").forEach(b => {
+      b.setAttribute("aria-pressed", b === btn ? "true" : "false");
+    });
+    render();
+  });
+});
+
+document.getElementById("t").addEventListener("input", (e) => {
+  state.t = Number(e.target.value) / 1000;
+  render();
+});
+
+function setRead(which) {
+  state.read = which;
+  document.getElementById("show-m").setAttribute("aria-pressed", which === "m" ? "true" : "false");
+  document.getElementById("show-l").setAttribute("aria-pressed", which === "l" ? "true" : "false");
+  render();
+}
+document.getElementById("show-m").addEventListener("click", () => setRead("m"));
+document.getElementById("show-l").addEventListener("click", () => setRead("l"));
+
+render();
+</script>
+</body>
+</html>

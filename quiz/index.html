@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quiz: the V-JEPA physics experiments</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,460;6..72,560&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #e6eef3;
+    --card: #f6f9fb;
+    --ink: #172430;
+    --muted: #526170;
+    --line: #c5d2dc;
+    --blue: #2a62d6;
+    --blue-soft: #d9e6fb;
+    --good: #1c6b42;
+    --good-soft: #d9f0e4;
+    --bad: #a33b32;
+    --bad-soft: #f8e4e1;
+    --amber: #8a5a12;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: Outfit, "Avenir Next", sans-serif;
+  }
+  body { padding: 28px 20px 80px; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1, h2, .q {
+    font-family: Newsreader, Georgia, serif;
+    font-weight: 560;
+    letter-spacing: -0.02em;
+  }
+  h1 { font-size: 42px; line-height: 1.05; margin: 0 0 10px; }
+  h2 { font-size: 22px; margin: 0 0 8px; }
+  p { margin: 0; line-height: 1.45; }
+  .lede { color: var(--muted); font-size: 18px; max-width: 62ch; }
+  .map { margin-top: 28px; display: flex; flex-direction: column; gap: 12px; }
+  .exp {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 16px 18px 16px 22px;
+    border-left: 4px solid var(--blue);
+  }
+  .exp .k { color: var(--blue); font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .exp p { color: var(--muted); font-size: 15.5px; margin-top: 6px; }
+  .exp strong { color: var(--ink); font-weight: 600; }
+  button, .opt {
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 22px; align-items: center; }
+  .primary, .ghost {
+    border: 1px solid var(--blue);
+    background: var(--blue);
+    color: white;
+    font-size: 16px;
+    padding: 10px 16px;
+    border-radius: 4px;
+  }
+  .primary:disabled { opacity: 0.4; cursor: default; }
+  .ghost { background: transparent; color: var(--blue); }
+  .top {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: baseline;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .bar { height: 3px; background: var(--line); margin: 10px 0 22px; }
+  .bar > div { height: 3px; background: var(--blue); width: 0; }
+  .q { font-size: 30px; line-height: 1.2; margin: 0 0 18px; }
+  .opts { display: flex; flex-direction: column; gap: 8px; }
+  .opt {
+    text-align: left;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 12px 14px;
+    font-size: 16.5px;
+    line-height: 1.35;
+    border-radius: 4px;
+  }
+  .opt:hover { border-color: var(--blue); }
+  .opt.on { border-color: var(--blue); background: var(--blue-soft); }
+  .opt.good { border-color: var(--good); background: var(--good-soft); }
+  .opt.bad { border-color: var(--bad); background: var(--bad-soft); }
+  .why {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: var(--good-soft);
+    border-left: 4px solid var(--good);
+    font-size: 16.5px;
+    line-height: 1.45;
+  }
+  .explain {
+    margin-top: 16px;
+    padding: 16px;
+    background: #dfe8f0;
+    border: 1px solid #b7c6d2;
+  }
+  .explain h2 { font-size: 24px; }
+  .explain .teach { margin: 8px 0 14px; font-size: 16.5px; line-height: 1.45; }
+  .fig {
+    background: var(--card);
+    border: 1px solid var(--line);
+    padding: 14px;
+    min-height: 120px;
+  }
+  .goal {
+    margin-top: 10px;
+    color: var(--amber);
+    font-size: 15px;
+  }
+  .goal.met { color: var(--good); }
+  label.slide {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    font-size: 15px;
+    color: var(--muted);
+  }
+  input[type="range"] { flex: 1; accent-color: var(--blue); }
+  .meters { display: flex; flex-direction: column; gap: 10px; }
+  .meter span { display: block; font-size: 14px; margin-bottom: 4px; }
+  .track { height: 14px; background: #e1e8ee; }
+  .track > div { height: 14px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .col {
+    border: 1px dashed #8ea0ae;
+    min-height: 88px;
+    padding: 8px;
+    background: var(--card);
+  }
+  .col h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+  .chip {
+    display: inline-block;
+    margin: 0 6px 6px 0;
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    background: white;
+    border-radius: 99px;
+    font-size: 14px;
+  }
+  .chip.pick { border-color: var(--blue); background: var(--blue-soft); }
+  .stacks { display: flex; gap: 28px; align-items: flex-end; min-height: 140px; }
+  .stack { display: flex; flex-direction: column-reverse; gap: 4px; width: 72px; }
+  .stack i {
+    display: block;
+    height: 14px;
+    background: var(--blue);
+    font-style: normal;
+  }
+  .stack.spd i { background: #d08a2c; }
+  .stack .name { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .readout {
+    font-family: Newsreader, Georgia, serif;
+    font-size: 40px;
+    line-height: 1;
+    margin-top: 8px;
+  }
+  .tiny { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .review li { margin: 10px 0; line-height: 1.4; }
+  .miss { color: var(--bad); }
+  svg text { font-family: Outfit, sans-serif; }
+  @media (max-width: 640px) {
+    h1 { font-size: 32px; }
+    .q { font-size: 26px; }
+    .pair { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+const CHAPTERS = [
+  {
+    id: "rig",
+    k: "The rig, shared by every experiment",
+    title: "Frozen V-JEPA, one vector per layer",
+    body: "The encoder is V-JEPA 2 ViT-L, 24 layers, never updated. The predictor never runs. Each 16-frame disk clip becomes 2,048 tokens per layer, averaged to one vector of 1,024 numbers. A probe is a straight-line readout we train from that vector to the label. Direction is predicted as sine and cosine, then turned back into degrees. Test clips are locked until the final readout."
+  },
+  {
+    id: "layers",
+    k: "Experiment 1",
+    title: "A readout at every layer",
+    body: "Train a fresh probe at each layer for direction, speed, and acceleration. This finds where each variable becomes linearly readable, and picks the single layer every later edit will use. Speed and acceleration are readable from the start. Direction appears as a jump partway through the network."
+  },
+  {
+    id: "null",
+    k: "Experiment 2",
+    title: "Erase the readout and try again",
+    body: "At the chosen layer, fit a probe, delete the direction in the vector it used, and fit another on what remains. Repeat until a new probe fails. One success might be a single copy of something written down many times. This counts the copies. Direction survives a long time. Speed and acceleration collapse quickly."
+  },
+  {
+    id: "steer",
+    k: "Experiment 3",
+    title: "Edit held-out clips toward 90°",
+    body: "Take the probes just kept. On test clips, change the vector only along those probes so they all say 90°. Leave the rest of the vector alone. A different probe, trained on unedited test clips, reads the result. This checks that the copies actually control the decoded angle, rather than merely correlating with it."
+  },
+  {
+    id: "curve",
+    k: "Experiment 4",
+    title: "A curve through the angles, versus a straight line",
+    body: "Average the training vectors that share a label and connect those averages with a smooth curve. Direction uses a loop, because 0° and 360° meet. The control is the straight line between the same endpoints. Walking a test clip along each path shows whether the geometry is curved. Speed gets the same test."
+  },
+  {
+    id: "pull",
+    k: "Experiment 5",
+    title: "Bend a path until the readout is satisfied",
+    body: "Start on the straight line and nudge the path so the frozen probe follows the angles we asked for. If the curve were the only vectors that mean those angles, the path should fall back onto it. This asks whether the curve is unique, or just one good route."
+  },
+  {
+    id: "tube",
+    k: "Experiment 6",
+    title: "Walk the curve, then nudge sideways",
+    body: "Pull each training vector onto the curve and delete the along-curve part. What remains sticks out sideways. Steering then walks the curve and adds a little of that sideways offset so the probe hits the final angle. This asks whether a few sideways directions can replace the big multi-probe edit."
+  },
+  {
+    id: "why",
+    k: "Experiment 7",
+    title: "What the sideways part contains, and how it grows",
+    body: "Predict the labels from position along the curve, and again from the sideways coordinates. Then rebuild the same picture at several depths. This separates three stories: spare copies of angle, other physical variables such as speed, and noise. Depth shows whether the representation tightens onto a wire after direction appears."
+  }
+];
+
+const QUESTIONS = [
+  {
+    id: "frozen", chapter: "rig", explainer: "frozen",
+    prompt: "Why is the video model frozen, with the predictor turned off?",
+    options: [
+      "So a successful readout means the pretrained encoder already stored the variable, rather than that we taught it the labels.",
+      "So the probes train faster. The science is the same if we finetune the encoder on these disks.",
+      "Because the predictor is where direction lives, and freezing the encoder forces the predictor to reveal it.",
+      "Because 16-frame clips are too short to run the predictor, which needs 64 frames."
+    ],
+    answer: 0,
+    why: "Every later number is a fact about a fixed representation. If the encoder were trained on these labels, a good probe could just mean we wrote the answer in."
+  },
+  {
+    id: "sincos", chapter: "rig", explainer: "sincos",
+    prompt: "Why is direction predicted as sine and cosine, rather than as a degree number?",
+    options: [
+      "0° and 359° are almost the same direction. Raw degrees treats them as far apart. Sine and cosine do not.",
+      "Degrees are circular, so the training loss is the wrapped angle. Sine and cosine are only used at scoring time.",
+      "The model outputs two tokens per frame, so the probe must have two outputs.",
+      "Sine and cosine make the chance error 45° instead of 90°, which is a stricter test."
+    ],
+    answer: 0,
+    why: "The probe is trained with ordinary squared error on the pair (sin θ, cos θ). The degree error is computed afterward, with wraparound. Chance on a uniform circle is 90°."
+  },
+  {
+    id: "holdout", chapter: "rig", explainer: "holdout",
+    prompt: "What are the test clips allowed to do?",
+    options: [
+      "They are scored at the end. They do not fit probes, choose the layer, or build the curve.",
+      "They choose the layer, because validation is too small.",
+      "They fit the steering probes, and validation only checks the curve.",
+      "They are mixed back into training after the layer is chosen."
+    ],
+    answer: 0,
+    why: "Validation picks the layer. Training fits probes, the curve, and the sideways directions. Test is the held-out check, including the fresh readout used after an edit."
+  },
+  {
+    id: "layer0", chapter: "layers", explainer: "layers",
+    prompt: "At layer 0, before the network has done much, which variables can a linear readout already see?",
+    options: [
+      "Speed and acceleration, with R² around 0.8. Direction on steady motion is still weak, R² about 0.23.",
+      "All three, with R² above 0.9. The disk is simple enough that layer 0 is enough.",
+      "Only direction. Speed and acceleration need the later layers.",
+      "None of them. Physics appears only after layer 8, the paper’s emergence zone."
+    ],
+    answer: 0,
+    why: "On the validation table, speed is 0.80 and acceleration is 0.79 at layer 0. Steady-motion direction is 0.23. The scalars are early. Direction is not."
+  },
+  {
+    id: "lstar", chapter: "layers", explainer: "layers",
+    prompt: "Direction’s validation R² peaks at layer 23 (0.97). We still do every later experiment at layer 5 (0.93). Why?",
+    options: [
+      "Layer 5 is where direction turns on. Layer 23 is the output, and the question was the onset.",
+      "Layer 23 overfits the training clips, so its R² is not real.",
+      "The paper used layer 5, and the rule was to copy that index.",
+      "Speed and acceleration have collapsed by layer 5, so it is the only layer where all three are readable."
+    ],
+    answer: 0,
+    why: "The rule takes the first layer that has crossed halfway from the layer-0 direction score to the best one, provided speed and acceleration are still strong there. They are. The paper’s jump on harder videos was layer 8. The beige band on the figure is their zone, not ours."
+  },
+  {
+    id: "peel", chapter: "null", explainer: "peel",
+    prompt: "In the nullspace experiment, what happens between probe 1 and probe 2?",
+    options: [
+      "Probe 1’s direction is deleted from the vectors. Probe 2 has to find the label in whatever is left.",
+      "Probe 2 is the same fit, retrained with a smaller learning rate.",
+      "Probe 2 is trained on the test set, to check that probe 1 was not memorizing.",
+      "The vectors are replaced by the probe’s own predictions, and probe 2 reads those predictions."
+    ],
+    answer: 0,
+    why: "The probe’s weight is factored with a QR, and that subspace is subtracted from both train and validation vectors. The score we record is the one before the deletion. The next probe lives in the residual."
+  },
+  {
+    id: "dims", chapter: "null", explainer: "peel",
+    prompt: "How many dimensions did the three variables take, on the runs we quote?",
+    options: [
+      "Direction 82, speed 5, acceleration 2.",
+      "Direction 8, speed 24, acceleration 24, matching the layer count.",
+      "All three took about 40 dimensions. The paper’s estimate was the target.",
+      "Direction 2, because sine and cosine are two numbers. Speed and acceleration are 1 each."
+    ],
+    answer: 0,
+    why: "Steady-motion direction kept 41 probes, and each probe has two rows, so 82. Speed kept 5. Acceleration kept 2. The wobble in direction is sine and cosine taking turns. The scalars fall smoothly. Defend the gap, not the exact integer."
+  },
+  {
+    id: "columns", chapter: "steer", explainer: "steer",
+    prompt: "With no edit, the fresh readout is about 90° away from 90° and about 19° away from the angle in the video. What does that pair mean?",
+    options: [
+      "The readout works. It reports the real angle. Real angles are scattered, so a fixed target of 90° is a quarter-turn away on average.",
+      "The readout is broken. Both numbers should be near 0° before any edit.",
+      "90° is chance at the true angle, so the readout is guessing. 19° is rounding error.",
+      "The clips were all filmed at 90°, and 19° is how far the camera was mis-calibrated."
+    ],
+    answer: 0,
+    why: "Chance error on a uniform circle is 90°. The 19° is the fresh probe’s ordinary accuracy on unedited test clips (R² 0.71). The edit is judged by those two numbers swapping roles."
+  },
+  {
+    id: "onefive", chapter: "steer", explainer: "steer",
+    prompt: "What does editing one direction probe do, compared with editing five together?",
+    options: [
+      "One probe moves the reading toward 90° (about 58° away) and does not place it. Five probes put it near 90° (about 11°) and far from the original angle (about 82°).",
+      "One probe is enough to reach about 6° from 90°. Extra probes only add noise.",
+      "Five probes scramble the vector: both errors get worse.",
+      "One probe changes the pixels of the disk. Five probes change the vector."
+    ],
+    answer: 0,
+    why: "Direction is stored many times. Changing one copy moves the vote. Changing several copies together makes them agree on 90°, so a fresh readout follows. By 20 probes the target error is about 6° and the error to the real angle is about 89°."
+  },
+  {
+    id: "edited", chapter: "steer", explainer: "edited",
+    prompt: "What object is actually changed in the steering experiment?",
+    options: [
+      "The averaged layer-5 vector. A linear readout scores it. The frames are never edited, and the predictor never runs.",
+      "The pixels of the disk, which are then re-encoded to see if the probe agrees.",
+      "The predictor’s next-frame guess, which is how V-JEPA emits an angle.",
+      "The test labels. The vectors stay fixed and the target angle in the metric is rewritten."
+    ],
+    answer: 0,
+    why: "“Causal” in this project means causal for the probe. A different readout, which was not the one we forced to say 90°, has to agree. That is a real control, and it is not a generated video."
+  },
+  {
+    id: "mid", chapter: "curve", explainer: "circle",
+    prompt: "On the path from 0° to 180°, halfway along, how do the curve and the straight line compare?",
+    options: [
+      "The curve is about 5° off the angle it should be passing through. The straight line is about 171° off. The readout jumps.",
+      "They match. Both stay within about 5° of the ramp the whole way.",
+      "The straight line tracks the ramp, and the curve overshoots because a spline wiggles.",
+      "Both fail halfway, with errors near 90°, then recover at the endpoint."
+    ],
+    answer: 0,
+    why: "The curve stays on the circle, so intermediate angles stay intermediate. The straight line cuts through the interior, and the probe reads the wrong side of the circle. That is the signature that direction is curved."
+  },
+  {
+    id: "ends", chapter: "curve", explainer: "circle",
+    prompt: "At the end of that same 0° to 180° path, in the first curve experiment, what lands closer to 180°?",
+    options: [
+      "The 20-copy edit, at about 8.5°. The curve and the straight line share the endpoint and both finish about 18.6° off.",
+      "The curve, at about 1°. The 20-copy edit cannot hit an endpoint.",
+      "The straight line, at about 1°. The curve finishes at 18° because it took the long way.",
+      "They all finish within 2° of each other. The path shape only matters halfway."
+    ],
+    answer: 0,
+    why: "Same endpoint means the curve and the line finish together. Forcing the angle is a different tool: many copies, edited only to hit 180°, land tighter. The curve is how you pass through angles. The copies are how you force one angle."
+  },
+  {
+    id: "short", chapter: "curve", explainer: "short",
+    prompt: "On the short hop from 22° to 338°, which method finishes closer to the target?",
+    options: [
+      "The curve and the straight line, both about 1.3°. The 20-copy edit is worse, about 8.4°, because it is a large rewrite for a small move.",
+      "The 20-copy edit, about 1°. Short hops are where many probes help most.",
+      "Only the curve. The straight line still teleports, with an error near 170°.",
+      "None of them. Short hops across 0° are undefined for a periodic spline."
+    ],
+    answer: 0,
+    why: "A short hop barely leaves the circle, so the straight line is almost on the curve. Overwriting a large subspace to reach a neighbor overshoots it."
+  },
+  {
+    id: "speed", chapter: "curve", explainer: "speed",
+    prompt: "The same curve-versus-line test on speed, from 0.5 to 3.5 m/s, says what about the geometry?",
+    options: [
+      "It is flat. Halfway, the straight line is off by 0.10 m/s and the curve by 0.37. The curve is not helping.",
+      "Speed is as curved as direction. The straight line’s halfway error is about ten times the curve’s.",
+      "Neither path moves the readout. Speed cannot be steered inside the vector.",
+      "The curve hits 3.5 m/s exactly and the straight line does not, so curvature is required."
+    ],
+    answer: 0,
+    why: "This matches the nullspace result: speed lived in about 5 dimensions and was linearly readable at layer 0. Both paths end near 2.9 rather than 3.5, so the miss is the readout, shared by both paths. Acceleration has the same shape, and its probe is weak (R² 0.33)."
+  },
+  {
+    id: "pullq", chapter: "pull", explainer: "pull",
+    prompt: "When a path is bent so the probe follows 0° to 180°, what happens to the error and to the distance from the curve?",
+    options: [
+      "The error falls to about 1°. The path ends up farther from the curve than the straight line was.",
+      "The error falls to about 1°, and the path settles onto the curve.",
+      "The error stays near 170°. The optimizer cannot move a frozen model.",
+      "The error falls to about 1° only if the path is constrained to stay on the curve."
+    ],
+    answer: 0,
+    why: "In that run the bent path is about 1° off, at a mean distance 3.3 from the curve. The straight line was closer, at 1.6. Walking the curve was more orderly and worse for this probe, about 12° in the middle. Many off-curve vectors still read as the right angle."
+  },
+  {
+    id: "tubek", chapter: "tube", explainer: "tube",
+    prompt: "Adding sideways directions while walking the 0° to 180° curve: how many does it take to land near the target?",
+    options: [
+      "Two. The error drops from about 20° to about 3°. One variance-maximizing sideways direction does almost nothing.",
+      "All 82. Anything less leaves the error near 20°.",
+      "One. The first sideways component is the whole tube.",
+      "Twenty, the same count as the multi-probe edit. The curve does not reduce the count."
+    ],
+    answer: 0,
+    why: "In that run, curve plus two sideways directions finishes at 2.8°, with the middle of the path still ordered. A single nullspace direction, made orthogonal to the curve, finishes at 2.6°. Twenty unrestricted probes in the same run finish at 3.5°. Past two, the table is flat."
+  },
+  {
+    id: "who", chapter: "why", explainer: "who",
+    prompt: "What do position-along-the-curve and the sideways coordinates predict?",
+    options: [
+      "The curve predicts angle (R² about 0.55) and not speed. The sideways part predicts speed (R² about 0.70) and not angle.",
+      "Both predict angle. Speed is absent from this layer.",
+      "The curve predicts speed. The sideways part predicts angle. That is why the curve can be walked.",
+      "Neither predicts anything above R² 0.1. The geometry is only visual."
+    ],
+    answer: 0,
+    why: "Sideways R² on angle is negative, about −0.54, worse than guessing the average. A step along the curve moves the decoded angle by 8.8° per unit. A step on the second sideways direction moves it by 0.14°. Removing speed shrinks the sideways energy by 28% and leaves most of it: partly speed, partly spare copies of angle."
+  },
+  {
+    id: "depth", chapter: "why", explainer: "depth",
+    prompt: "From layer 0 to layer 23, what happens to the sideways scatter around the direction curve?",
+    options: [
+      "It thickens, energy about 3 then 26 then 50 then 221, while a step along the curve moves the angle less and less.",
+      "It collapses onto the curve once direction becomes readable at layer 5.",
+      "It stays the same thickness. Only the probe gets more accurate.",
+      "It turns from sideways scatter into along-curve scatter. By layer 23 the energy is tangential."
+    ],
+    answer: 0,
+    why: "After direction exists, the model does not tighten it onto a wire. Deeper layers keep more ways to write the same angle, and each way is locally softer. Tangential energy stays near zero the whole way."
+  }
+];
+
+const state = {
+  phase: "intro",
+  queue: QUESTIONS.map((_, i) => i),
+  q: 0,
+  selected: null,
+  submitted: false,
+  correct: false,
+  explainerDone: false,
+  taught: false,
+  firstScore: null,
+  firstN: null,
+  misses: [],
+  widget: {}
+};
+
+const app = document.getElementById("app");
+app.addEventListener("click", onClick);
+app.addEventListener("input", onInput);
+
+function current() { return QUESTIONS[state.queue[state.q]]; }
+
+function resetQ() {
+  state.selected = null;
+  state.submitted = false;
+  state.correct = false;
+  state.explainerDone = false;
+  state.taught = false;
+  state.widget = {};
+}
+
+function onClick(e) {
+  const t = e.target.closest("[data-act]");
+  if (!t) return;
+  const act = t.dataset.act;
+  if (act === "start") {
+    state.phase = "quiz";
+    state.queue = QUESTIONS.map((_, i) => i);
+    state.q = 0;
+    state.misses = [];
+    state.firstScore = null;
+    state.firstMisses = null;
+    state.pass = 1;
+    resetQ();
+    render();
+  } else if (act === "pick") {
+    if (state.submitted) return;
+    state.selected = Number(t.dataset.i);
+    render();
+  } else if (act === "check") {
+    if (state.selected === null || state.submitted) return;
+    grade(false);
+  } else if (act === "teach") {
+    if (state.submitted) return;
+    state.selected = null;
+    grade(true);
+  } else if (act === "next") {
+    if (state.submitted && !state.explainerDone) return;
+    state.q += 1;
+    resetQ();
+    if (state.q >= state.queue.length) state.phase = "review";
+    render();
+  } else if (act === "retry") {
+    const missed = state.firstMisses || state.misses;
+    state.pass = (state.pass || 1) + 1;
+    state.phase = "quiz";
+    state.queue = QUESTIONS.map((q, i) => missed.includes(q.id) ? i : -1).filter(i => i >= 0);
+    state.q = 0;
+    state.misses = [];
+    resetQ();
+    render();
+  } else if (act === "home") {
+    state.phase = "intro";
+    render();
+  } else if (act === "zone") {
+    assignChip(t.dataset.zone);
+  } else if (act === "chip") {
+    state.widget.held = t.dataset.chip;
+    render();
+  } else if (act === "peel") {
+    state.widget.peels = (state.widget.peels || 0) + 1;
+    syncGoal();
+    render();
+  } else if (act === "see") {
+    state.widget[t.dataset.see] = true;
+    state.widget.mode = t.dataset.see === "sawShort" ? "short" : "half";
+    syncGoal();
+    render();
+  } else if (act === "choice") {
+    const c = t.dataset.choice;
+    state.widget.choice = c;
+    if (c === "train") {
+      state.widget.sawTrain = true;
+      state.widget.trained = true;
+    } else if (c === "frozen") {
+      state.widget.trained = false;
+    }
+    syncGoal();
+    render();
+  }
+}
+
+function onInput(e) {
+  const name = e.target.dataset.widget;
+  if (!name) return;
+  state.widget[name] = Number(e.target.value);
+  if (name === "t100") state.widget.t = state.widget.t100 / 100;
+  const was = state.explainerDone;
+  syncGoal();
+  const live = document.getElementById("live");
+  if (live) live.innerHTML = liveHTML();
+  const goal = document.getElementById("goal");
+  if (goal) {
+    goal.className = "goal" + (state.explainerDone ? " met" : "");
+    goal.textContent = goalText();
+  }
+  const reveal = document.getElementById("reveal");
+  if (reveal) reveal.hidden = !state.explainerDone;
+  const next = document.getElementById("next");
+  if (next) next.disabled = !state.explainerDone;
+  if (state.explainerDone !== was) render();
+}
+
+function grade(teach) {
+  const q = current();
+  state.submitted = true;
+  state.taught = teach;
+  state.correct = !teach && state.selected === q.answer;
+  if (!state.correct && !state.misses.includes(q.id)) state.misses.push(q.id);
+  if (state.correct) state.explainerDone = true;
+  if (state.firstScore === null) {
+    /* first pass tracked at review via misses length against full set */
+  }
+  render();
+}
+
+function render() {
+  if (state.phase === "intro") app.innerHTML = introHTML();
+  else if (state.phase === "review") app.innerHTML = reviewHTML();
+  else app.innerHTML = quizHTML();
+  mount();
+}
+
+function introHTML() {
+  return `
+    <h1>The experiments, as questions</h1>
+    <p class="lede">Seven experiments on one frozen video model. Read what each one was for, then answer. A wrong answer opens a picture you have to move before the next question.</p>
+    <div class="map">
+      ${CHAPTERS.map(c => `
+        <article class="exp">
+          <div class="k">${c.k}</div>
+          <h2>${c.title}</h2>
+          <p>${c.body}</p>
+        </article>`).join("")}
+    </div>
+    <div class="row">
+      <button class="primary" data-act="start">Start the quiz, ${QUESTIONS.length} questions</button>
+    </div>`;
+}
+
+function quizHTML() {
+  const q = current();
+  const n = state.queue.length;
+  const within = QUESTIONS.filter(x => x.chapter === q.chapter);
+  const idx = within.findIndex(x => x.id === q.id) + 1;
+  const chapter = CHAPTERS.find(c => c.id === q.chapter);
+  const showWhy = state.submitted && state.correct;
+  const showEx = state.submitted && !state.correct;
+  return `
+    <div class="top">
+      <span>${chapter.title}</span>
+      <span>Question ${state.q + 1} of ${n}, ${idx} of ${within.length} in this experiment</span>
+    </div>
+    <div class="bar"><div style="width:${(state.q / n) * 100}%"></div></div>
+    <h2 class="q">${q.prompt}</h2>
+    <div class="opts">
+      ${q.options.map((text, i) => {
+        let cls = "opt";
+        if (state.selected === i) cls += " on";
+        if (state.submitted && state.correct && i === q.answer) cls += " good";
+        if (state.submitted && !state.correct && state.selected === i) cls += " bad";
+        if (state.explainerDone && !state.correct && i === q.answer) cls += " good";
+        return `<button class="${cls}" data-act="pick" data-i="${i}">${text}</button>`;
+      }).join("")}
+    </div>
+    ${showWhy ? `<div class="why">${q.why}</div>` : ""}
+    ${showEx ? explainerShell(q) : ""}
+    <div class="row">
+      ${!state.submitted ? `<button class="primary" data-act="check" ${state.selected === null ? "disabled" : ""}>Check</button>
+        <button class="ghost" data-act="teach">I don’t know, show me</button>` : ""}
+      ${state.submitted ? `<button class="primary" id="next" data-act="next" ${state.explainerDone ? "" : "disabled"}>Continue</button>` : ""}
+    </div>`;
+}
+
+function explainerShell(q) {
+  return `
+    <section class="explain">
+      <h2>${explainerTitle(q.explainer)}</h2>
+      <p class="teach">${explainerTeach(q.explainer)}</p>
+      <div class="fig" id="live">${liveHTML()}</div>
+      <div id="control">${controlHTML()}</div>
+      <p class="goal ${state.explainerDone ? "met" : ""}" id="goal">${goalText()}</p>
+      <div id="reveal" ${state.explainerDone ? "" : "hidden"}><div class="why" style="margin-top:12px">${q.why}</div></div>
+    </section>`;
+}
+
+function reviewHTML() {
+  if (state.firstScore === null) {
+    state.firstScore = QUESTIONS.length - state.misses.length;
+    state.firstN = QUESTIONS.length;
+    state.firstMisses = state.misses.slice();
+  }
+  const shown = state.firstScore;
+  const shownN = state.firstN;
+  const firstMisses = QUESTIONS.filter(q => state.firstMisses.includes(q.id));
+  const still = state.pass > 1 ? QUESTIONS.filter(q => state.misses.includes(q.id)) : [];
+  const cleared = state.pass > 1 && still.length === 0;
+  return `
+    <h1>${shown} of ${shownN} on the first try</h1>
+    <p class="lede" style="margin-top:12px">${cleared
+      ? "Those are clear now. Speed and acceleration are flat. Direction turns on at layer 5, is stored many times, and those copies sit around a circle that also carries speed."
+      : shown === shownN
+      ? "Speed and acceleration are flat and low-dimensional. Direction turns on at layer 5, is stored many times, and those copies sit around a circle that also carries speed."
+      : "Each miss below is the sentence the explainer was heading toward."}</p>
+    ${firstMisses.length && !cleared ? `<ul class="review">${firstMisses.map(q => `<li><span class="miss">${q.prompt}</span><br>${q.why}</li>`).join("")}</ul>` : ""}
+    <div class="row">
+      ${firstMisses.length && !cleared ? `<button class="primary" data-act="retry">Retry the ${firstMisses.length} you missed</button>` : ""}
+      <button class="ghost" data-act="home">Back to the experiment list</button>
+    </div>`;
+}
+
+function explainerTitle(type) {
+  return {
+    frozen: "What freezing protects",
+    sincos: "Why 359° is next to 0°",
+    holdout: "Where the test clips are allowed",
+    layers: "Scrub the layers",
+    peel: "Delete a readout and see who survives",
+    steer: "Watch the two errors swap",
+    edited: "Three things we might have edited",
+    circle: "Walk the half turn yourself",
+    short: "A short hop does not cut through the circle",
+    speed: "Speed’s two paths",
+    pull: "Drag the point off the curve",
+    tube: "How many sideways directions",
+    who: "Put each label where it actually lives",
+    depth: "The tube across depth"
+  }[type];
+}
+
+function explainerTeach(type) {
+  return {
+    frozen: "Flip the switch to training, then back. Training on these labels can make a readout look good even if the original model had nothing. A frozen encoder cannot pick up the answer during the experiment.",
+    sincos: "Drag the second angle up near 359°. The naive degree gap becomes huge. The sine-cosine gap stays tiny, which is the distance the probe actually trains on.",
+    holdout: "The layer, the probes, and the curve are fit without test clips. Test shows up once, when a readout that never saw an edited vector scores the edit.",
+    layers: "Speed is already high. Direction stays low, then jumps. Park the slider on the jump, not on the last layer where the score is highest.",
+    peel: "Each click removes the direction the latest readout used. Speed has few copies. Direction has many. Peel until speed is gone.",
+    steer: "The left bar is distance from the angle we asked for, 90°. The right bar is distance from the angle in the video. Drag the number of probes. You want the left bar to fall and the right bar to rise.",
+    edited: "The frames stay on disk. The predictor is skipped. The edit is a change to the averaged vector, and the judge is a different linear readout.",
+    circle: "Drag halfway. The curve stays on the circle and the readout follows 0° to 180°. The straight line cuts across, and the readout goes the long way around.",
+    short: "Look at both paths. On a short hop the straight line barely leaves the circle, so it does not teleport. The big multi-probe edit is the one that overshoots.",
+    speed: "Drag to the middle of the speed path. The straight line sits closer to the claimed speed than the curve does. Curvature is not the control here.",
+    pull: "The readout reports the nearest point on the circle, not how far you are from it. Push the point outward. The angle can stay put while you leave the curve.",
+    tube: "The curve alone finishes near 20° off. Slide the sideways count. Find the smallest count where the error falls under 5°.",
+    who: "Click a label, then click the column it belongs to. Angle belongs on the curve. Speed belongs in the sideways part.",
+    depth: "Drag to the last layer. The ring around the curve gets thicker, and a step along the curve moves the decoded angle less."
+  }[type];
+}
+
+function goalText() {
+  if (state.explainerDone) return "That is the picture. The answer is marked above.";
+  const q = current();
+  if (!q) return "";
+  return {
+    frozen: "Turn training on, then freeze the model again.",
+    sincos: "Drag the angle past 350°.",
+    holdout: "Click the only stage that may see test clips.",
+    layers: "Set the layer to the jump, layer 5.",
+    peel: "Peel until the speed stack is empty and direction is still standing.",
+    steer: "Drag until at least 5 probes are edited and the bars have swapped.",
+    edited: "Click the thing we actually changed.",
+    circle: "Park the slider halfway, between 0.4 and 0.6.",
+    short: "Open both the half turn and the short hop.",
+    speed: "Drag to the middle of the path.",
+    pull: "Drag the point until it sits well off the circle.",
+    tube: "Stop on 2 sideways directions, the first count that lands.",
+    who: "Assign angle to the curve and speed to the sides.",
+    depth: "Drag to layer 23."
+  }[q.explainer];
+}
+
+function controlHTML() {
+  const q = current();
+  if (!q || state.correct) return "";
+  const w = state.widget;
+  switch (q.explainer) {
+    case "sincos":
+      return `<label class="slide">Second angle<input type="range" min="0" max="359" value="${w.angle ?? 20}" data-widget="angle"></label>`;
+    case "layers":
+      return `<label class="slide">Layer<input type="range" min="0" max="23" value="${w.layer ?? 0}" data-widget="layer"></label>`;
+    case "steer":
+      return `<label class="slide">Probes edited<input type="range" min="0" max="41" value="${w.n ?? 0}" data-widget="n"></label>`;
+    case "circle":
+    case "speed":
+      return `<label class="slide">Along the path<input type="range" min="0" max="100" value="${Math.round((w.t ?? 0) * 100)}" data-widget="t100"></label>`;
+    case "tube":
+      return `<label class="slide">Sideways directions<input type="range" min="0" max="20" value="${w.k ?? 0}" data-widget="k"></label>`;
+    case "depth":
+      return `<label class="slide">Depth<input type="range" min="0" max="3" value="${w.di ?? 0}" data-widget="di"></label>`;
+    default:
+      return "";
+  }
+}
+
+function liveHTML() {
+  const q = current();
+  if (!q) return "";
+  const w = state.widget;
+  switch (q.explainer) {
+    case "frozen": {
+      const trained = !!w.trained;
+      return `<p style="font-size:18px">${trained
+        ? "Training on these labels is on. A good readout might only mean we taught the encoder the answer."
+        : "The encoder is frozen. A good readout has to come from the representation that was already there."}</p>
+        <div class="row">
+          <button class="primary" data-act="choice" data-choice="${trained ? "frozen" : "train"}">${trained ? "Freeze it again" : "Turn training on"}</button>
+        </div>`;
+    }
+    case "sincos": {
+      const b = w.angle ?? 20;
+      const naive = Math.abs(b - 0);
+      const wrapped = Math.min(naive, 360 - naive);
+      const sc = Math.hypot(Math.sin(b * Math.PI / 180) - 0, Math.cos(b * Math.PI / 180) - 1);
+      return `<div class="readout">${b.toFixed(0)}°</div>
+        <p class="tiny">Compared with 0°. Naive degree gap ${naive.toFixed(0)}°. Wrapped gap ${wrapped.toFixed(0)}°. Sine-cosine distance ${sc.toFixed(2)}.</p>`;
+    }
+    case "holdout":
+      return `<div class="pair">
+        <button class="opt ${w.choice === "fit" ? "bad" : ""}" data-act="choice" data-choice="fit">Fit the probes and the curve</button>
+        <button class="opt ${w.choice === "layer" ? "bad" : ""}" data-act="choice" data-choice="layer">Choose the layer</button>
+        <button class="opt ${w.choice === "test" ? "good" : ""}" data-act="choice" data-choice="test">Score the edit with a fresh readout</button>
+      </div>
+      <p class="tiny">${w.choice === "fit" || w.choice === "layer" ? "Test clips are kept out of that step." : w.choice === "test" ? "Yes. That is their only job." : "Three stages. Only one may see the test clips."}</p>`;
+    case "layers": {
+      const L = w.layer ?? 0;
+      const dir = L < 5 ? 0.23 + L * 0.08 : 0.93 + Math.min(0.04, (L - 5) * 0.002);
+      const spd = 0.80 + Math.min(0.16, L * 0.01);
+      return `<div class="meters">
+          <div class="meter"><span>Direction R² at layer ${L}: ${dir.toFixed(2)}</span><div class="track"><div style="width:${dir * 100}%;background:#2a62d6"></div></div></div>
+          <div class="meter"><span>Speed R²: ${spd.toFixed(2)}</span><div class="track"><div style="width:${spd * 100}%;background:#d08a2c"></div></div></div>
+        </div>
+        <p class="tiny">${L === 23 ? "Highest score, and it is the output. The onset was earlier." : L === 8 ? "That is the paper’s layer on harder videos. On these disks the jump is earlier." : L === 5 ? "This is the jump we keep." : "Keep scrubbing."}</p>`;
+    }
+    case "peel": {
+      const p = w.peels || 0;
+      const dir = Math.max(0, 6 - p);
+      const spd = Math.max(0, 3 - p);
+      const bars = (n, cls) => `<div class="stack ${cls}">${"<i></i>".repeat(n)}<div class="name">${cls === "spd" ? "Speed " + n : "Direction " + n}</div></div>`;
+      return `<div class="stacks">${bars(dir, "")}${bars(spd, "spd")}</div>
+        <div class="row"><button class="primary" data-act="peel">Peel one readout from each</button></div>`;
+    }
+    case "steer": {
+      const n = w.n ?? 0;
+      const [a, b] = steerAt(n);
+      return `<div class="meters">
+          <div class="meter"><span>Error versus 90°, the angle we asked for: ${a.toFixed(0)}°</span><div class="track"><div style="width:${a}%;background:#2a62d6"></div></div></div>
+          <div class="meter"><span>Error versus the angle in the video: ${b.toFixed(0)}°</span><div class="track"><div style="width:${b}%;background:#a33b32"></div></div></div>
+        </div>`;
+    }
+    case "edited":
+      return `<div class="opts">
+        <button class="opt ${w.choice === "pixels" ? "bad" : ""}" data-act="choice" data-choice="pixels">The pixels of the disk</button>
+        <button class="opt ${w.choice === "pred" ? "bad" : ""}" data-act="choice" data-choice="pred">The predictor’s next-frame output</button>
+        <button class="opt ${w.choice === "vector" ? "good" : ""}" data-act="choice" data-choice="vector">The averaged layer-5 vector</button>
+      </div>
+      <p class="tiny">${w.choice === "pixels" ? "The frames are never rewritten. We do not re-encode." : w.choice === "pred" ? "The predictor is skipped on every forward pass." : w.choice === "vector" ? "Yes. A different linear readout then scores that vector." : "Pick the object that changes."}</p>`;
+    case "circle": {
+      const t = w.t ?? 0;
+      return circleBlock(t, false);
+    }
+    case "short": {
+      const mode = w.mode || "half";
+      return `<div class="row">
+          <button class="ghost" data-act="see" data-see="sawHalf">Show the half turn</button>
+          <button class="ghost" data-act="see" data-see="sawShort">Show the short hop</button>
+        </div>
+        <div style="margin-top:12px">${mode === "short" ? shortBlock() : halfNote()}</div>`;
+    }
+    case "speed": {
+      const t = w.t ?? 0;
+      const claimed = 0.5 + t * 3;
+      const line = 0.5 + t * 3 + (t > 0 && t < 1 ? -0.1 * Math.sin(Math.PI * t) : 0);
+      const curve = 0.5 + t * 3 + 0.55 * Math.sin(Math.PI * t);
+      return `<div class="readout">${claimed.toFixed(1)} m/s claimed</div>
+        <p class="tiny">Straight line reads ${line.toFixed(2)}. Curve reads ${curve.toFixed(2)}. At the real halfway point the straight line was 0.10 off and the curve 0.37 off.</p>`;
+    }
+    case "pull":
+      return `<svg id="pullsvg" viewBox="0 0 400 340" width="100%" height="280">
+          <circle cx="200" cy="170" r="90" fill="none" stroke="#2a62d6" stroke-width="3"/>
+          <circle id="ghost" cx="200" cy="80" r="6" fill="#2a62d6"/>
+          <circle id="dot" cx="200" cy="80" r="9" fill="#172430" style="cursor:grab"/>
+        </svg>
+        <p class="tiny" id="pullcap">Drag the dark point. The blue point is its nearest place on the curve. The readout follows the blue point.</p>`;
+    case "tube": {
+      const k = w.k ?? 0;
+      const err = k >= 2 ? 3 : 20;
+      return `<div class="readout">${err}° off the target</div>
+        <p class="tiny">${k === 0 ? "Curve only." : k === 1 ? "One sideways direction. Still about 20° off." : k === 2 ? "Two sideways directions. This is the drop." : "Still about 3°. Extra directions are not buying more."} In the run, k = 2 finished at 2.8°, and 20 unrestricted probes finished at 3.5°.</p>`;
+    }
+    case "who": {
+      const a = w.assign || {};
+      const chip = (id, label) => `<button class="chip ${w.held === id ? "pick" : ""}" data-act="chip" data-chip="${id}">${label}${a[id] ? " → " + (a[id] === "curve" ? "curve" : "sides") : ""}</button>`;
+      return `<div>${chip("angle", "Angle")}${chip("speed", "Speed")}</div>
+        <div class="pair" style="margin-top:10px">
+          <button class="col" data-act="zone" data-zone="curve"><h3>Along the curve</h3>${a.angle === "curve" ? "Angle" : ""} ${a.speed === "curve" ? "Speed" : ""}</button>
+          <button class="col" data-act="zone" data-zone="side"><h3>Sideways</h3>${a.angle === "side" ? "Angle" : ""} ${a.speed === "side" ? "Speed" : ""}</button>
+        </div>`;
+    }
+    case "depth": {
+      const stops = [0, 5, 12, 23];
+      const i = w.di ?? 0;
+      const L = stops[i];
+      const energy = {0: 3, 5: 26, 12: 50, 23: 221}[L];
+      const sens = {0: 29, 5: 9, 12: 4, 23: 1}[L];
+      const rad = 28 + i * 22;
+      return `<svg viewBox="0 0 280 200" width="100%" height="180">
+          <circle cx="140" cy="100" r="${rad}" fill="none" stroke="#2a62d6" stroke-width="${8 + i * 4}" opacity="0.35"/>
+          <circle cx="140" cy="100" r="36" fill="none" stroke="#172430" stroke-width="2"/>
+          <text x="150" y="30" font-size="14" fill="#526170">layer ${L}</text>
+        </svg>
+        <p class="tiny">Sideways energy ${energy}. A step along the curve moves the angle about ${sens}°.</p>`;
+    }
+    default:
+      return "";
+  }
+}
+
+function circleBlock(t) {
+  const splineDeg = t * 180;
+  const chordDeg = (360 - t * 180) % 360;
+  const claimed = splineDeg;
+  const chordErr = circ(chordDeg, claimed);
+  const sx = 200 + 90 * Math.cos(rad(splineDeg));
+  const sy = 160 - 90 * Math.sin(rad(splineDeg));
+  const cx = 200 + (1 - t) * 90 + t * -90;
+  const cy = 160;
+  return `<svg viewBox="0 0 400 280" width="100%" height="220">
+      <circle cx="200" cy="160" r="90" fill="none" stroke="#c5d2dc" stroke-width="2"/>
+      <path d="M290 160 A90 90 0 0 0 110 160" fill="none" stroke="#2a62d6" stroke-width="4"/>
+      <line x1="290" y1="160" x2="110" y2="160" stroke="#a33b32" stroke-dasharray="6 5"/>
+      <circle cx="${sx.toFixed(1)}" cy="${sy.toFixed(1)}" r="6" fill="#2a62d6"/>
+      <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="#a33b32"/>
+    </svg>
+    <div class="readout">${claimed.toFixed(0)}° along the path</div>
+    <p class="tiny">Curve readout ${splineDeg.toFixed(0)}°, error ${Math.abs(splineDeg - claimed).toFixed(0)}°. Straight-line readout ${chordDeg.toFixed(0)}°, error ${chordErr.toFixed(0)}°. In the run the halfway errors were 5.5° and 171°.</p>`;
+}
+
+function halfNote() {
+  return `<p>Half turn, 0° to 180°. Halfway, the curve is about 5° off and the straight line is about 171° off.</p>`;
+}
+function shortBlock() {
+  return `<p>Short hop, 22° to 338°. The straight line stays near the circle. Both paths finish about 1.3° off. Twenty probes finish about 8.4° off, a large edit for a small move.</p>`;
+}
+
+function steerAt(n) {
+  const pts = [[0, 90, 19], [1, 58, 38], [5, 11, 82], [20, 6, 89], [41, 4, 89]];
+  let i = 0;
+  while (i < pts.length - 1 && n > pts[i + 1][0]) i++;
+  const a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)];
+  const u = a[0] === b[0] ? 0 : (n - a[0]) / (b[0] - a[0]);
+  return [a[1] + (b[1] - a[1]) * u, a[2] + (b[2] - a[2]) * u];
+}
+
+function rad(d) { return d * Math.PI / 180; }
+function circ(a, b) {
+  const d = Math.abs(a - b) % 360;
+  return Math.min(d, 360 - d);
+}
+
+function assignChip(zone) {
+  if (!state.widget.held) return;
+  state.widget.assign = Object.assign({}, state.widget.assign, { [state.widget.held]: zone });
+  syncGoal();
+  render();
+}
+
+function syncGoal() {
+  const q = current();
+  if (!q || state.correct) return;
+  const w = state.widget;
+  let ok = false;
+  switch (q.explainer) {
+    case "frozen":
+      ok = !!w.sawTrain && w.choice === "frozen";
+      break;
+    case "sincos":
+      ok = (w.angle ?? 0) >= 350;
+      break;
+    case "holdout":
+      ok = w.choice === "test";
+      break;
+    case "layers":
+      ok = (w.layer ?? 0) === 5;
+      break;
+    case "peel":
+      ok = (w.peels || 0) >= 3;
+      break;
+    case "steer":
+      ok = (w.n ?? 0) >= 5;
+      break;
+    case "edited":
+      ok = w.choice === "vector";
+      break;
+    case "circle":
+      ok = (w.t ?? 0) >= 0.4 && (w.t ?? 0) <= 0.6;
+      break;
+    case "short":
+      ok = !!w.sawHalf && !!w.sawShort;
+      break;
+    case "speed":
+      ok = (w.t ?? 0) >= 0.4 && (w.t ?? 0) <= 0.6;
+      break;
+    case "pull":
+      ok = (w.radial || 0) > 55;
+      break;
+    case "tube":
+      ok = (w.k ?? 0) === 2;
+      break;
+    case "who": {
+      const a = w.assign || {};
+      ok = a.angle === "curve" && a.speed === "side";
+      break;
+    }
+    case "depth":
+      ok = (w.di ?? 0) === 3;
+      break;
+  }
+  state.explainerDone = ok;
+}
+
+function mount() {
+  const q = current();
+  if (!q || state.phase !== "quiz" || !state.submitted || state.correct) return;
+  if (q.explainer === "pull") mountPull();
+  if (q.explainer === "short") {
+    /* mode display follows whichever was clicked last; default text handled in liveHTML */
+  }
+}
+
+function mountPull() {
+  const svg = document.getElementById("pullsvg");
+  const dot = document.getElementById("dot");
+  const ghost = document.getElementById("ghost");
+  const cap = document.getElementById("pullcap");
+  if (!svg || !dot) return;
+  const cx = 200, cy = 170, R = 90;
+  let p = { x: 200, y: 80 };
+  if (state.widget.px) p = { x: state.widget.px, y: state.widget.py };
+  function apply(pt) {
+    const dx = pt.x - cx, dy = pt.y - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    const ang = Math.atan2(dy, dx);
+    const gx = cx + R * Math.cos(ang);
+    const gy = cy + R * Math.sin(ang);
+    dot.setAttribute("cx", pt.x);
+    dot.setAttribute("cy", pt.y);
+    ghost.setAttribute("cx", gx);
+    ghost.setAttribute("cy", gy);
+    const radial = Math.abs(dist - R);
+    const deg = (Math.atan2(-(gy - cy), gx - cx) * 180 / Math.PI + 360) % 360;
+    state.widget.radial = radial;
+    state.widget.px = pt.x;
+    state.widget.py = pt.y;
+    cap.textContent = `Readout ${deg.toFixed(0)}°, from the blue point. Distance off the curve ${radial.toFixed(0)}. Push outward rather than around.`;
+    const was = state.explainerDone;
+    syncGoal();
+    if (state.explainerDone !== was) render();
+  }
+  function fromEvent(e) {
+    const r = svg.getBoundingClientRect();
+    const x = Math.max(20, Math.min(380, (e.clientX - r.left) * (400 / r.width)));
+    const y = Math.max(20, Math.min(320, (e.clientY - r.top) * (340 / r.height)));
+    return { x, y };
+  }
+  apply(p);
+  svg.onpointerdown = (e) => {
+    svg.setPointerCapture(e.pointerId);
+    apply(fromEvent(e));
+  };
+  svg.onpointermove = (e) => {
+    if (e.buttons !== 1 && e.pointerType === "mouse") return;
+    if (e.buttons === 1 || e.pointerType !== "mouse") apply(fromEvent(e));
+  };
+}
+
+render();
+</script>
+</body>
+</html>
